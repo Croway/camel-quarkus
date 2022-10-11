@@ -28,4 +28,5 @@ class MongoDbProcessor {
     FeatureBuildItem feature() {
         return new FeatureBuildItem(FEATURE);
     }
+
 }

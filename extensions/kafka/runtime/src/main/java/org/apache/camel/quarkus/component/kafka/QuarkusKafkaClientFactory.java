@@ -22,12 +22,14 @@ import java.util.Properties;
 import org.apache.camel.component.kafka.DefaultKafkaClientFactory;
 import org.apache.camel.component.kafka.KafkaConfiguration;
 import org.apache.kafka.clients.CommonClientConfigs;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.producer.Producer;
 
 /**
  * Custom {@link org.apache.camel.component.kafka.KafkaClientFactory} to enable Kafka configuration properties
- * discovered by Quarkus to be merged with those configured from the Camel Kafka component and endpoint URI options.
+ * discovered by the Quarkus Kubernetes Service Binding extension to be merged with those configured from
+ * the Camel Kafka component and endpoint URI options.
  */
 public class QuarkusKafkaClientFactory extends DefaultKafkaClientFactory {
 
@@ -38,13 +40,13 @@ public class QuarkusKafkaClientFactory extends DefaultKafkaClientFactory {
     }
 
     @Override
-    public KafkaProducer getProducer(Properties camelKafkaProperties) {
+    public Producer getProducer(Properties camelKafkaProperties) {
         mergeConfiguration(camelKafkaProperties);
         return super.getProducer(camelKafkaProperties);
     }
 
     @Override
-    public KafkaConsumer getConsumer(Properties camelKafkaProperties) {
+    public Consumer getConsumer(Properties camelKafkaProperties) {
         mergeConfiguration(camelKafkaProperties);
         return super.getConsumer(camelKafkaProperties);
     }
@@ -57,11 +59,16 @@ public class QuarkusKafkaClientFactory extends DefaultKafkaClientFactory {
 
     /**
      * Merges kafka configuration properties discovered by Quarkus with those provided via the
-     * component & endpoint URI options.
+     * component & endpoint URI options. This behaviour can be suppressed via a configuration property.
      */
-    private void mergeConfiguration(Properties camelKafkaProperties) {
+    public void mergeConfiguration(Properties camelKafkaProperties) {
         if (quarkusKafkaConfiguration != null) {
             for (Map.Entry<String, Object> entry : quarkusKafkaConfiguration.entrySet()) {
+                // Don't overwrite the group id if it has been set
+                if (entry.getKey().equals(ConsumerConfig.GROUP_ID_CONFIG)
+                        && camelKafkaProperties.containsKey(ConsumerConfig.GROUP_ID_CONFIG)) {
+                    continue;
+                }
                 camelKafkaProperties.put(entry.getKey(), entry.getValue());
             }
         }

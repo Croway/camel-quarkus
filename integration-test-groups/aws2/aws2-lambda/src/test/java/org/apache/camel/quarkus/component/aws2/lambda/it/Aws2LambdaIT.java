@@ -16,12 +16,9 @@
  */
 package org.apache.camel.quarkus.component.aws2.lambda.it;
 
-import io.quarkus.test.junit.NativeImageTest;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import io.quarkus.test.junit.QuarkusIntegrationTest;
 
-//TODO disabled on Localstack, see https://github.com/apache/camel-quarkus/issues/2595
-@EnabledIfEnvironmentVariable(named = "AWS_ACCESS_KEY", matches = "[a-zA-Z0-9]+")
-@NativeImageTest
+@QuarkusIntegrationTest
 class Aws2LambdaIT extends Aws2LambdaTest {
 
 }

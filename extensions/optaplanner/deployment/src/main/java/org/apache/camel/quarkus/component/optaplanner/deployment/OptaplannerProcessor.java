@@ -27,4 +27,5 @@ class OptaplannerProcessor {
     FeatureBuildItem feature() {
         return new FeatureBuildItem(FEATURE);
     }
+
 }

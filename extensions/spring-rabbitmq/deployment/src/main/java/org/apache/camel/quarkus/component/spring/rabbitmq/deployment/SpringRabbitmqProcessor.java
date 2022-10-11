@@ -42,5 +42,4 @@ class SpringRabbitmqProcessor {
                 SpringProxy.class.getCanonicalName(), Advised.class.getCanonicalName(),
                 DecoratingProxy.class.getCanonicalName()));
     }
-
 }

@@ -16,18 +16,28 @@
  */
 package org.apache.camel.quarkus.component.jta.it;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.UUID;
+
 import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.h2.H2DatabaseTestResource;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
+import org.hamcrest.Matchers;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.hamcrest.Matchers.is;
 
 @QuarkusTest
 @QuarkusTestResource(H2DatabaseTestResource.class)
-@QuarkusTestResource(ActiveMQXATestResource.class)
 class JtaTest {
 
     @Test
@@ -136,31 +146,69 @@ class JtaTest {
                 .body(is("not_supported"));
     }
 
-    @Test
-    public void testJdbcInTx() {
-        final String msg = java.util.UUID.randomUUID().toString().replace("-", "");
+    @ParameterizedTest
+    @ValueSource(strings = { "jdbc", "jdbcRollback", "sqltx", "sqltxRollback" })
+    public void testTx(String endpoint) throws SQLException {
+        final String msg = endpoint + ":" + UUID.randomUUID().toString().replace("-", "");
+
+        assertDBRows(endpoint);
+        RestAssured.get("/jta/mock/" + endpoint + "/0/1000")
+                .then()
+                .statusCode(200)
+                .body(Matchers.is(""));
 
         RestAssured.given()
                 .contentType(ContentType.TEXT)
                 .body(msg)
-                .post("/jta/jdbc")
+                .post("/jta/route/" + endpoint)
                 .then()
                 .statusCode(201)
                 .body(is(msg + " added"));
 
-        RestAssured.given()
-                .contentType(ContentType.TEXT)
-                .body("fail")
-                .post("/jta/jdbc")
+        // One row inserted
+        assertDBRows(endpoint, msg);
+        RestAssured.get("/jta/mock/" + endpoint + "/1/15000")
                 .then()
-                .statusCode(500);
+                .statusCode(200)
+                .body(Matchers.is(msg));
 
         RestAssured.given()
                 .contentType(ContentType.TEXT)
-                .get("/jta/mock")
+                .body("rollback")
+                .post("/jta/route/" + endpoint)
+                .then()
+                .statusCode(500);
+
+        // Should still have the original row as the other insert attempt was rolled back
+        assertDBRows(endpoint, msg);
+        RestAssured.get("/jta/mock/" + endpoint + "/1/15000")
                 .then()
                 .statusCode(200)
-                .body(is("empty"))
-                .log();
+                .body(Matchers.is(msg));
+    }
+
+    private void assertDBRows(String source, String... expectedMessages) throws SQLException {
+        try (Connection connection = DriverManager.getConnection("jdbc:h2:tcp://localhost/mem:test")) {
+            try (Statement statement = connection.createStatement()) {
+                try (ResultSet resultSet = statement
+                        .executeQuery("SELECT message FROM example WHERE origin = '" + source + "' ORDER BY id")) {
+                    int i = 0;
+                    for (; i < expectedMessages.length; i++) {
+                        String expectedMessage = expectedMessages[i];
+                        if (resultSet.next()) {
+                            Assertions.assertEquals(expectedMessage, resultSet.getString(1));
+                        } else {
+                            Assertions
+                                    .fail("Expected message '" + expectedMessage + "' for origin '" + source + "' at index " + i
+                                            + "; found: end of list");
+                        }
+                    }
+                    if (resultSet.next()) {
+                        Assertions.fail("Expected end of list '" + source + "' at index " + i + "; found message: "
+                                + resultSet.getString(1));
+                    }
+                }
+            }
+        }
     }
 }

@@ -24,6 +24,7 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 
+import example.avro.Admin;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.camel.ProducerTemplate;
@@ -37,14 +38,14 @@ public class AvroResource {
     @Inject
     ProducerTemplate producerTemplate;
 
-    @Path("/genericMarshalUnmarshalUsingBuildTimeAvroDataFormat/{value}")
+    @Path("/genericMarshalUnmarshalUsingBuildTimeGeneratedClass/{value}")
     @GET
     @Produces(MediaType.TEXT_PLAIN)
-    public String genericMarshalUnmarshalUsingBuildTimeAvroDataFormat(@PathParam("value") String value) {
-        GenericRecord input = new GenericData.Record(getSchema());
+    public String genericMarshalUnmarshalUsingBuildTimeGeneratedClass(@PathParam("value") String value) {
+        GenericRecord input = new GenericData.Record(Admin.SCHEMA$);
         input.put("name", value);
-        Object marshalled = producerTemplate.requestBody("direct:marshalUsingBuildTimeAvroDataFormat", input);
-        GenericRecord output = producerTemplate.requestBody("direct:unmarshalUsingBuildTimeAvroDataFormat", marshalled,
+        Object marshalled = producerTemplate.requestBody("direct:marshalUsingBuildTimeGeneratedClass", input);
+        GenericRecord output = producerTemplate.requestBody("direct:unmarshalUsingBuildTimeGeneratedClass", marshalled,
                 GenericRecord.class);
         return output.get("name").toString();
     }

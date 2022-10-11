@@ -31,5 +31,6 @@ public class As2TestResource implements QuarkusTestResourceLifecycleManager {
 
     @Override
     public void stop() {
+        AvailablePortFinder.releaseReservedPorts();
     }
 }

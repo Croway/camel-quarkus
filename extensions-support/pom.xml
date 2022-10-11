@@ -21,8 +21,9 @@
 
     <parent>
         <groupId>org.apache.camel.quarkus</groupId>
-        <artifactId>camel-quarkus</artifactId>
-        <version>1.9.0-SNAPSHOT</version>
+        <artifactId>camel-quarkus-build-parent</artifactId>
+        <version>2.14.0-SNAPSHOT</version>
+        <relativePath>../poms/build-parent/pom.xml</relativePath>
     </parent>
 
     <modelVersion>4.0.0</modelVersion>
@@ -37,14 +38,16 @@
         <module>aws</module>
         <module>aws2</module>
         <module>azure-core</module>
+        <module>azure-core-http-client-vertx</module>
         <module>bouncycastle</module>
-        <module>common</module>
         <module>commons-logging</module>
         <module>consul-client</module>
         <module>debezium</module>
+        <module>google-cloud</module>
         <module>google-http-client</module>
         <module>httpclient</module>
         <module>jackson-dataformat-xml</module>
+        <module>jdbc</module>
         <module>jetty</module>
         <module>mail</module>
         <module>mongodb</module>
@@ -56,4 +59,24 @@
         <module>xstream</module>
         <module>xalan</module>
     </modules>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.quarkus</groupId>
+                <artifactId>quarkus-bom</artifactId>
+                <version>${quarkus.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.camel.quarkus</groupId>
+                <artifactId>camel-quarkus-bom</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
 </project>

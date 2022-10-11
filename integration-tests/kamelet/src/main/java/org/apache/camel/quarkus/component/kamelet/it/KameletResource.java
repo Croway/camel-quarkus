@@ -17,18 +17,28 @@
 package org.apache.camel.quarkus.component.kamelet.it;
 
 import javax.inject.Inject;
+import javax.json.Json;
+import javax.json.JsonArray;
+import javax.json.JsonArrayBuilder;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 
+import org.apache.camel.CamelContext;
 import org.apache.camel.ConsumerTemplate;
 import org.apache.camel.FluentProducerTemplate;
+import org.apache.camel.model.Model;
+import org.apache.camel.model.OptionalIdentifiedDefinition;
 
 @Path("/kamelet")
 public class KameletResource {
+
+    @Inject
+    CamelContext camelContext;
 
     @Inject
     FluentProducerTemplate fluentProducerTemplate;
@@ -64,4 +74,34 @@ public class KameletResource {
     public String kameletChain(String message) throws Exception {
         return fluentProducerTemplate.to("direct:chain").withBody(message).request(String.class);
     }
+
+    @Path("/invoke/{name}")
+    @POST
+    @Produces(MediaType.TEXT_PLAIN)
+    public String invoke(@PathParam("name") String name, String message) throws Exception {
+        return fluentProducerTemplate.toF("kamelet:%s", name).withBody(message).request(String.class);
+    }
+
+    @Path("/list")
+    @GET
+    @Produces(MediaType.APPLICATION_JSON)
+    public JsonArray list() {
+        JsonArrayBuilder builder = Json.createArrayBuilder();
+
+        camelContext.getExtension(Model.class)
+                .getRouteTemplateDefinitions()
+                .stream()
+                .map(OptionalIdentifiedDefinition::getId)
+                .forEach(builder::add);
+
+        return builder.build();
+    }
+
+    @Path("/locationAtRuntime/{name}")
+    @POST
+    @Produces(MediaType.TEXT_PLAIN)
+    public String kameletLocationAtRuntime(@PathParam("name") String name) {
+        return fluentProducerTemplate.to("direct:kamelet-location-at-runtime").withBody(name).request(String.class);
+    }
+
 }

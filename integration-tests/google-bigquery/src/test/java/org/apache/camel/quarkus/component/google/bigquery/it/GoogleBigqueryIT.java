@@ -16,11 +16,9 @@
  */
 package org.apache.camel.quarkus.component.google.bigquery.it;
 
-import io.quarkus.test.junit.NativeImageTest;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import io.quarkus.test.junit.QuarkusIntegrationTest;
 
-@NativeImageTest
-@EnabledIfEnvironmentVariable(named = "GOOGLE_APPLICATION_CREDENTIALS", matches = ".+")
+@QuarkusIntegrationTest
 class GoogleBigqueryIT extends GoogleBigqueryTest {
 
 }

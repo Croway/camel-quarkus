@@ -30,8 +30,6 @@ import java.util.regex.Matcher
 final Path treeRootDir = Paths.get(properties['maven.multiModuleProjectDirectory'])
 
 final List<Path> replaceInFiles = [
-    treeRootDir.resolve('docs/antora-playbook.yml'),
-    treeRootDir.resolve('docs/antora-playbook-dev.yml'),
     treeRootDir.resolve('docs/antora.yml')
 ] as List
 
@@ -57,7 +55,8 @@ replaceInFiles.each { path ->
             m.appendReplacement(newContent, '$1 ' + Matcher.quoteReplacement(newValue) + ' # replace ' + Matcher.quoteReplacement('${' + property + '}'))
         }
         m.appendTail(newContent)
-        final String newContentString = newContent.toString()
+        String newContentString = newContent.toString()
+
         if (!newContentString.equals(content)) {
             println 'Updated ' + path
             Files.write(path, newContentString.getBytes('UTF-8'))

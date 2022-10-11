@@ -16,6 +16,7 @@
  */
 package org.apache.camel.quarkus.core.deployment;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -190,21 +191,25 @@ public class CamelNativeImageProcessor {
 
         if (config.runtimeCatalog.models) {
             for (ApplicationArchive archive : archives.getAllApplicationArchives()) {
-                for (Path root : archive.getRootDirs()) {
+                for (Path root : archive.getRootDirectories()) {
                     final Path resourcePath = root.resolve(CamelContextHelper.MODEL_DOCUMENTATION_PREFIX);
 
                     if (!Files.isDirectory(resourcePath)) {
                         continue;
                     }
 
-                    List<String> items = CamelSupport.safeWalk(resourcePath)
-                            .filter(Files::isRegularFile)
-                            .map(root::relativize)
-                            .map(Path::toString)
-                            .collect(Collectors.toList());
+                    try (Stream<Path> files = Files.walk(resourcePath)) {
+                        List<String> items = files
+                                .filter(Files::isRegularFile)
+                                .map(root::relativize)
+                                .map(Path::toString)
+                                .collect(Collectors.toList());
+                        LOGGER.debug("Register catalog json: {}", items);
+                        resources.add(new NativeImageResourceBuildItem(items));
+                    } catch (IOException e) {
+                        throw new RuntimeException("Could not walk " + resourcePath, e);
+                    }
 
-                    LOGGER.debug("Register catalog json: {}", items);
-                    resources.add(new NativeImageResourceBuildItem(items));
                 }
             }
         }
@@ -217,31 +222,13 @@ public class CamelNativeImageProcessor {
             BuildProducer<NativeImageResourceBuildItem> resources) {
 
         final ResourcesConfig resourcesConfig = config.native_.resources;
-        if (!resourcesConfig.includePatterns.isPresent()) {
-            LOGGER.debug("Not scanning resources for native inclusion as include-patterns is not set");
-            return;
+        if (resourcesConfig.includePatterns.isPresent()) {
+            throw new IllegalStateException(
+                    "quarkus.camel.native.resources.include-patterns configuration property was removed in Camel Quarkus 2.0.0. Use quarkus.native.resources.includes instead.");
         }
-
-        LOGGER.debug("Scanning resources for native inclusion from include-patterns {}",
-                resourcesConfig.includePatterns.get());
-
-        PathFilter pathFilter = new PathFilter.Builder()
-                .include(resourcesConfig.includePatterns)
-                .exclude(resourcesConfig.excludePatterns)
-                .build();
-
-        for (ApplicationArchive archive : archives.getAllApplicationArchives()) {
-            LOGGER.debug("Scanning resources for native inclusion from archive at {}", archive.getPaths());
-
-            for (Path rootPath : archive.getRootDirs()) {
-                CamelSupport.safeWalk(rootPath).filter(path -> Files.isRegularFile(path))
-                        .map(rootPath::relativize)
-                        .filter(pathFilter.asPathPredicate())
-                        .forEach(filteredPath -> {
-                            resources.produce(new NativeImageResourceBuildItem(filteredPath.toString()));
-                            LOGGER.debug("Embedding resource in native executable: {}", filteredPath.toString());
-                        });
-            }
+        if (resourcesConfig.excludePatterns.isPresent()) {
+            throw new IllegalStateException(
+                    "quarkus.camel.native.resources.exclude-patterns configuration property was removed in Camel Quarkus 2.0.0. Use quarkus.native.resources.excludes instead.");
         }
     }
 
@@ -267,17 +254,15 @@ public class CamelNativeImageProcessor {
                 .forEach(builder::exclude);
         final PathFilter pathFilter = builder.build();
 
-        for (ApplicationArchive archive : archives.getAllApplicationArchives()) {
-            LOGGER.debug("Scanning resources for native inclusion from archive at {}", archive.getPaths());
-
-            for (Path rootPath : archive.getRootDirs()) {
-                String[] selectedClassNames = pathFilter.scanClassNames(rootPath, CamelSupport.safeWalk(rootPath),
-                        Files::isRegularFile);
-                if (selectedClassNames.length > 0) {
-                    reflectiveClasses.produce(new ReflectiveClassBuildItem(true, true, selectedClassNames));
-                }
-            }
+        Stream<Path> archiveRootDirs = archives.getAllApplicationArchives().stream()
+                .peek(archive -> LOGGER.debug("Scanning resources for native inclusion from archive at {}",
+                        archive.getResolvedPaths()))
+                .flatMap(archive -> archive.getRootDirectories().stream());
+        String[] selectedClassNames = pathFilter.scanClassNames(archiveRootDirs);
+        if (selectedClassNames.length > 0) {
+            reflectiveClasses.produce(new ReflectiveClassBuildItem(true, true, selectedClassNames));
         }
+
     }
 
     @BuildStep

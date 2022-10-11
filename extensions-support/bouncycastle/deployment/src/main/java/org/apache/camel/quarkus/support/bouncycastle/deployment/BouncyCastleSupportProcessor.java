@@ -16,27 +16,27 @@
  */
 package org.apache.camel.quarkus.support.bouncycastle.deployment;
 
-import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.annotations.ExecutionTime;
 import io.quarkus.deployment.annotations.Record;
 import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
-import io.quarkus.deployment.builditem.FeatureBuildItem;
 import io.quarkus.deployment.builditem.IndexDependencyBuildItem;
 import io.quarkus.deployment.builditem.ShutdownContextBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.RuntimeReinitializedClassBuildItem;
+import io.quarkus.security.deployment.BouncyCastleProviderBuildItem;
 import org.apache.camel.quarkus.support.bouncycastle.BouncyCastleRecorder;
 import org.jboss.jandex.IndexView;
 
 public class BouncyCastleSupportProcessor {
-    static final String FEATURE = "camel-support-bouncycastle";
 
     @BuildStep
-    FeatureBuildItem feature() {
-        return new FeatureBuildItem(FEATURE);
+    void produceBouncyCastleProvider(BuildProducer<BouncyCastleProviderBuildItem> bouncyCastleProvider) {
+        bouncyCastleProvider.produce(new BouncyCastleProviderBuildItem());
     }
 
     @BuildStep
@@ -61,18 +61,16 @@ public class BouncyCastleSupportProcessor {
 
     @BuildStep
     void secureRandomConfiguration(BuildProducer<RuntimeReinitializedClassBuildItem> reinitialized) {
-        for (String reinitialziedClassName : Arrays.asList(
-                "java.security.SecureRandom",
-                "org.bouncycastle.crypto.CryptoServicesRegistrar",
-                "org.bouncycastle.jcajce.provider.drbg.DRBG$NonceAndIV",
-                "org.bouncycastle.jcajce.provider.drbg.DRBG$Default")) {
-            reinitialized.produce(new RuntimeReinitializedClassBuildItem(reinitialziedClassName));
-        }
+        reinitialized.produce(new RuntimeReinitializedClassBuildItem("java.security.SecureRandom"));
     }
 
     @BuildStep
     @Record(ExecutionTime.STATIC_INIT)
-    public void registerBouncyCastleProvider(BouncyCastleRecorder recorder, ShutdownContextBuildItem shutdownContextBuildItem) {
-        recorder.registerBouncyCastleProvider(shutdownContextBuildItem);
+    public void registerBouncyCastleProvider(List<CipherTransformationBuildItem> cipherTransformations,
+            BouncyCastleRecorder recorder,
+            ShutdownContextBuildItem shutdownContextBuildItem) {
+        List<String> allCipherTransformations = cipherTransformations.stream()
+                .flatMap(c -> c.getCipherTransformations().stream()).collect(Collectors.toList());
+        recorder.registerBouncyCastleProvider(allCipherTransformations, shutdownContextBuildItem);
     }
 }

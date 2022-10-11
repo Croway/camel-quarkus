@@ -39,18 +39,35 @@ public class BeanValidatorResource {
     @Inject
     ProducerTemplate producerTemplate;
 
-    @Path("/get/{manufactor}/{plate}")
+    @Inject
+    ValidatorFactoryCustomizer.MyMessageInterpolator messageInterpolator;
+
+    @Path("/get/{optional}/{manufactor}/{plate}")
     @GET
     @Produces(MediaType.TEXT_PLAIN)
-    public Response get(@PathParam("manufactor") String manufactor, @PathParam("plate") String plate) throws Exception {
-        LOG.info("bean-validator: " + manufactor + "/" + plate);
-        Car car = new Car(manufactor, plate);
-        Exchange out = producerTemplate.request("direct:start", e -> e.getMessage().setBody(car));
+    public Response get(@PathParam("optional") String endpoint, @PathParam("manufactor") String manufactor,
+            @PathParam("plate") String plate) throws Exception {
+        return get(new Car(manufactor, plate), endpoint);
+    }
+
+    @Path("/get/{optional}/{manufactor}")
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response getNull(@PathParam("optional") String endpoint, @PathParam("manufactor") String manufactor)
+            throws Exception {
+        return get(new Car(manufactor, null), endpoint);
+    }
+
+    private Response get(Car car, String endpoint) throws Exception {
+        LOG.info("bean-validator: " + car.getManufacturer() + "/" + car.getLicensePlate());
+        Exchange out = producerTemplate.request("direct:" + endpoint, e -> e.getMessage().setBody(car));
+        if (messageInterpolator.getCount() == 0) {
+            return Response.status(500, "Interpolator was not used.").build();
+        }
         if (out.isFailed()) {
             return Response.status(400, "Invalid car").build();
         } else {
             return Response.status(200, "OK").build();
         }
     }
-
 }

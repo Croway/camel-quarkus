@@ -31,32 +31,23 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import javax.inject.Inject;
 import javax.mail.Provider;
 
+import com.sun.mail.handlers.handler_base;
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
-import io.quarkus.deployment.builditem.FeatureBuildItem;
+import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
+import io.quarkus.deployment.builditem.IndexDependencyBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.NativeImageResourceBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
+import io.quarkus.deployment.builditem.nativeimage.RuntimeInitializedClassBuildItem;
+import org.jboss.jandex.DotName;
 
 class SupportMailProcessor {
 
-    private static final String FEATURE = "camel-support-mail";
-
-    @Inject
-    BuildProducer<ReflectiveClassBuildItem> reflectiveClass;
-
-    @Inject
-    BuildProducer<NativeImageResourceBuildItem> resource;
-
     @BuildStep
-    FeatureBuildItem feature() {
-        return new FeatureBuildItem(FEATURE);
-    }
-
-    @BuildStep
-    void process() throws IOException {
+    void process(BuildProducer<ReflectiveClassBuildItem> reflectiveClass,
+            BuildProducer<NativeImageResourceBuildItem> resource) {
         List<String> providers = resources("META-INF/services/javax.mail.Provider")
                 .flatMap(this::lines)
                 .filter(s -> !s.startsWith("#"))
@@ -101,6 +92,24 @@ class SupportMailProcessor {
                 "META-INF/javamail.address.map",
                 "META-INF/javamail.providers",
                 "META-INF/mailcap"));
+    }
+
+    @BuildStep
+    IndexDependencyBuildItem indexDependencies() {
+        return new IndexDependencyBuildItem("com.sun.mail", "jakarta.mail");
+    }
+
+    @BuildStep
+    void runtimeInitializedClasses(
+            CombinedIndexBuildItem combinedIndex,
+            BuildProducer<RuntimeInitializedClassBuildItem> runtimeInitializedClass) {
+
+        combinedIndex.getIndex()
+                .getAllKnownSubclasses(DotName.createSimple(handler_base.class.getName()))
+                .stream()
+                .map(classInfo -> classInfo.name().toString())
+                .map(RuntimeInitializedClassBuildItem::new)
+                .forEach(runtimeInitializedClass::produce);
     }
 
     private Stream<URL> resources(String path) {

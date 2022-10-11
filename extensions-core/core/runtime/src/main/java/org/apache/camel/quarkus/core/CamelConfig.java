@@ -66,6 +66,18 @@ public class CamelConfig {
     @ConfigItem
     public CSimpleConfig csimple;
 
+    /**
+     * Build time configuration options for the Camel CDI event bridge.
+     */
+    @ConfigItem
+    public EventBridgeConfig eventBridge;
+
+    /**
+     * Build time configuration options for enable/disable camel source location
+     */
+    @ConfigItem(defaultValue = "false")
+    public boolean sourceLocationEnabled;
+
     @ConfigGroup
     public static class BootstrapConfig {
         /**
@@ -212,25 +224,15 @@ public class CamelConfig {
     public static class ResourcesConfig {
 
         /**
-         * A comma separated list of Ant-path style patterns to match resources
-         * that should be <strong>excluded</strong> from the native executable. By default,
-         * resources not selected by quarkus itself are ignored. Then, inclusion
-         * of additional resources could be triggered with
-         * <code>includePatterns</code>. When the inclusion patterns is too
-         * large, eviction of previously selected resources could be triggered
-         * with <code>excludePatterns</code>.
+         * Replaced by {@code quarkus.native.resources.excludes} in Camel Quarkus 2.0.0.
+         * Using this property throws an exception at build time.
          */
         @ConfigItem
         public Optional<List<String>> excludePatterns;
 
         /**
-         * A comma separated list of Ant-path style patterns to match resources
-         * that should be <strong>included</strong> in the native executable. By default,
-         * resources not selected by quarkus itself are ignored. Then, inclusion
-         * of additional resources could be triggered with
-         * <code>includePatterns</code>. When the inclusion patterns is too
-         * large, eviction of previously selected resources could be triggered
-         * with <code>excludePatterns</code>.
+         * Replaced by {@code quarkus.native.resources.includes} in Camel Quarkus 2.0.0.
+         * Using this property throws an exception at build time.
          */
         @ConfigItem
         public Optional<List<String>> includePatterns;
@@ -275,9 +277,12 @@ public class CamelConfig {
          * <code>io.quarkus.runtime.annotations.RegisterForReflection</code> annotation
          * in your Java code.
          * <p>
-         * For this option to work properly, the artifacts containing the selected classes
-         * must either contain a Jandex index ({@code META-INF/jandex.idx}) or they must
-         * be registered for indexing using the {@code quarkus.index-dependency.*} family
+         * For this option to work properly, at least one of the following conditions must be satisfied:
+         * <ul>
+         * <li>There are no wildcards (<code>*</code> or <code>/</code>) in the patterns</li>
+         * <li>The artifacts containing the selected classes contain a Jandex index ({@code META-INF/jandex.idx})</li>
+         * <li>The artifacts containing the selected classes are registered for indexing using the
+         * {@code quarkus.index-dependency.*} family
          * of options in {@code application.properties} - e.g.
          *
          * <pre>
@@ -286,11 +291,24 @@ public class CamelConfig {
          * </pre>
          *
          * where {@code my-dep} is a label of your choice to tell Quarkus that
-         * {@code org.my-group} and with {@code my-artifact} belong together.
+         * {@code org.my-group} and with {@code my-artifact} belong together.</li>
+         * </ul>
          */
         @ConfigItem
         public Optional<List<String>> includePatterns;
 
+        /**
+         * If {@code true}, basic classes are registered for serialization; otherwise basic classes won't be registered
+         * automatically for serialization in native mode.
+         *
+         * The list of classes automatically registered for serialization can be found in <a href=
+         * "https://github.com/apache/camel-quarkus/blob/main/extensions-core/core/deployment/src/main/java/org/apache/camel/quarkus/core/deployment/CamelSerializationProcessor.java">CamelSerializationProcessor.BASE_SERIALIZATION_CLASSES</a>.
+         *
+         * Setting this to {@code false} helps to reduce the size of the native image. In JVM mode, there is no real
+         * benefit of setting this flag to {@code true} except for making the behavior consistent with native mode.
+         */
+        @ConfigItem(defaultValue = "false")
+        public boolean serializationEnabled;
     }
 
     @ConfigGroup
@@ -346,5 +364,22 @@ public class CamelConfig {
         /** What to do if it is not possible to extract CSimple expressions from a route definition at build time. */
         @ConfigItem(defaultValue = "warn")
         public FailureRemedy onBuildTimeAnalysisFailure;
+    }
+
+    @ConfigGroup
+    public static class EventBridgeConfig {
+
+        /**
+         * Whether to enable the bridging of Camel events to CDI events.
+         * <p>
+         * This allows CDI observers to be configured for Camel events. E.g. those belonging to the
+         * {@code org.apache.camel.quarkus.core.events}, {@code org.apache.camel.quarkus.main.events} &
+         * {@code org.apache.camel.impl.event} packages.
+         * <p>
+         * Note that this configuration item only has any effect when observers configured for Camel events
+         * are present in the application.
+         */
+        @ConfigItem(defaultValue = "true")
+        public boolean enabled;
     }
 }

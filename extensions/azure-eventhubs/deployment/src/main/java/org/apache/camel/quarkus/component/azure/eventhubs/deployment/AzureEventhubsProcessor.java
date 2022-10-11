@@ -16,6 +16,8 @@
  */
 package org.apache.camel.quarkus.component.azure.eventhubs.deployment;
 
+import java.util.stream.Stream;
+
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
@@ -24,6 +26,7 @@ import io.quarkus.deployment.builditem.FeatureBuildItem;
 import io.quarkus.deployment.builditem.IndexDependencyBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.NativeImageResourceBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
+import io.quarkus.deployment.builditem.nativeimage.RuntimeInitializedClassBuildItem;
 import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
 
@@ -71,4 +74,13 @@ class AzureEventhubsProcessor {
                 "eventhubs-messages.properties"));
     }
 
+    @BuildStep
+    void runtimeInitializedClasses(BuildProducer<RuntimeInitializedClassBuildItem> runtimeInitializedClasses) {
+        Stream.of(
+                "com.azure.messaging.eventhubs.PartitionBasedLoadBalancer",
+                "com.microsoft.azure.proton.transport.proxy.impl.DigestProxyChallengeProcessorImpl",
+                "com.microsoft.azure.proton.transport.ws.impl.Utils")
+                .map(RuntimeInitializedClassBuildItem::new)
+                .forEach(runtimeInitializedClasses::produce);
+    }
 }

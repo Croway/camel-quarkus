@@ -44,13 +44,16 @@ public class ActiveMQTestResource implements QuarkusTestResourceLifecycleManager
             container = new GenericContainer<>(ACTIVEMQ_IMAGE)
                     .withExposedPorts(TCP_PORT)
                     .withLogConsumer(new Slf4jLogConsumer(LOGGER))
-                    .waitingFor(Wait.forListeningPort());
+                    .waitingFor(Wait.forLogMessage(".*ActiveMQ.*started.*", 1));
 
             container.start();
 
             return Collections.singletonMap(
                     "camel.component.activemq.broker-url",
-                    String.format("tcp://%s:%d", container.getContainerIpAddress(), container.getMappedPort(TCP_PORT)));
+                    String.format(
+                            "tcp://%s:%d?connectionTimeout=5000&tcpNoDelay=false&socket.OOBInline=false",
+                            container.getHost(),
+                            container.getMappedPort(TCP_PORT)));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

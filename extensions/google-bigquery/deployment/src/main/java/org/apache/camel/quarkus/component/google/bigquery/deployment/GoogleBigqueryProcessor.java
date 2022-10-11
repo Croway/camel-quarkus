@@ -16,12 +16,11 @@
  */
 package org.apache.camel.quarkus.component.google.bigquery.deployment;
 
-import io.quarkus.arc.deployment.AdditionalBeanBuildItem;
-import io.quarkus.arc.deployment.UnremovableBeanBuildItem;
+import java.util.List;
+
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.builditem.FeatureBuildItem;
-import org.apache.camel.component.google.bigquery.GoogleBigQueryConnectionFactory;
-import org.apache.camel.quarkus.component.google.bigquery.GoogleBigQueryConnectionFactoryProducer;
+import io.quarkus.deployment.builditem.nativeimage.RuntimeInitializedClassBuildItem;
 
 class GoogleBigqueryProcessor {
     private static final String FEATURE = "camel-google-bigquery";
@@ -32,12 +31,10 @@ class GoogleBigqueryProcessor {
     }
 
     @BuildStep
-    UnremovableBeanBuildItem unremovableBeans() {
-        return UnremovableBeanBuildItem.beanTypes(GoogleBigQueryConnectionFactory.class);
-    }
-
-    @BuildStep
-    public AdditionalBeanBuildItem connectionFactoryProducerBean() {
-        return new AdditionalBeanBuildItem(GoogleBigQueryConnectionFactoryProducer.class);
+    public List<RuntimeInitializedClassBuildItem> runtimeInitializedClass() {
+        return List.of(
+                new RuntimeInitializedClassBuildItem("org.apache.arrow.memory.BaseAllocator"),
+                new RuntimeInitializedClassBuildItem("org.apache.arrow.memory.DefaultAllocationManagerFactory"),
+                new RuntimeInitializedClassBuildItem("org.apache.arrow.memory.NettyAllocationManager"));
     }
 }

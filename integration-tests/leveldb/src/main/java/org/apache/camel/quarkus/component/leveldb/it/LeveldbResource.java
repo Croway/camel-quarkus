@@ -79,9 +79,9 @@ public class LeveldbResource {
             producerTemplate.sendBodyAndHeader(path, message, "id", 123);
         }
 
-        mocks[0].assertIsSatisfied(context, 30, TimeUnit.SECONDS);
+        MockEndpoint.assertIsSatisfied(context, 30, TimeUnit.SECONDS);
 
-        Map<String, List<Map<String, Object>>> data = new HashMap();
+        Map<String, List<Map<String, Object>>> data = new HashMap<>();
         for (int i = 0; i < mocks.length; i++) {
             data.put(mockNamesArray[i], extractDataFromMock(mocks[i]));
         }
@@ -100,6 +100,7 @@ public class LeveldbResource {
 
         MockEndpoint mockResult = context.getEndpoint(LeveldbRouteBuilder.MOCK_RESULT, MockEndpoint.class);
         mockResult.reset();
+        mockResult.setExpectedMessageCount(1);
 
         byte[] longestBytes = messages[0].getBytes();
         for (String message : messages) {
@@ -110,7 +111,7 @@ public class LeveldbResource {
             }
         }
 
-        mockResult.assertIsSatisfied(context, 30, TimeUnit.SECONDS);
+        MockEndpoint.assertIsSatisfied(context, 30, TimeUnit.SECONDS);
 
         byte[] result = mockResult.getExchanges().get(0).getIn().getBody(byte[].class);
 

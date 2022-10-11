@@ -16,101 +16,16 @@
  */
 package org.apache.camel.quarkus.component.jaxb.it.model;
 
-import javax.xml.bind.annotation.*;
+public interface Person {
+    String getFirstName();
 
-@XmlAccessorType(XmlAccessType.FIELD)
-@XmlType(name = "", propOrder = { "firstName", "lastName", "age" })
-@XmlRootElement(name = "person")
-public class Person {
+    void setFirstName(String value);
 
-    @XmlElement(required = true)
-    protected String firstName = "John";
-    @XmlElement(required = true)
-    protected String lastName = "Doe";
-    @XmlElement(required = true, type = Integer.class, nillable = true)
-    protected Integer age = 33;
+    String getLastName();
 
-    /**
-     * Gets the value of the firstName property.
-     *
-     * @return possible object is
-     *         {@link String }
-     */
-    public String getFirstName() {
-        return firstName;
-    }
+    void setLastName(String value);
 
-    /**
-     * Sets the value of the firstName property.
-     *
-     * @param value allowed object is
-     *              {@link String }
-     */
-    public void setFirstName(String value) {
-        this.firstName = value;
-    }
+    Integer getAge();
 
-    /**
-     * Gets the value of the lastName property.
-     *
-     * @return possible object is
-     *         {@link String }
-     */
-    public String getLastName() {
-        return lastName;
-    }
-
-    /**
-     * Sets the value of the lastName property.
-     *
-     * @param value allowed object is
-     *              {@link String }
-     */
-    public void setLastName(String value) {
-        this.lastName = value;
-    }
-
-    /**
-     * Gets the value of the age property.
-     *
-     * @return possible object is
-     *         {@link Integer }
-     */
-    public Integer getAge() {
-        return age;
-    }
-
-    /**
-     * Sets the value of the age property.
-     *
-     * @param value allowed object is
-     *              {@link Integer }
-     */
-    public void setAge(Integer value) {
-        this.age = value;
-    }
-
-    public Person withFirstName(String value) {
-        setFirstName(value);
-        return this;
-    }
-
-    public Person withLastName(String value) {
-        setLastName(value);
-        return this;
-    }
-
-    public Person withAge(Integer value) {
-        setAge(value);
-        return this;
-    }
-
-    @Override
-    public String toString() {
-        return "Person{" +
-                "firstName='" + firstName + '\'' +
-                ", lastName='" + lastName + '\'' +
-                ", age=" + age +
-                '}';
-    }
+    void setAge(Integer value);
 }

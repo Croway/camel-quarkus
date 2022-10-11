@@ -87,6 +87,20 @@ public class Aws2TestEnvContext {
     }
 
     /**
+     * Removes client properties to be not seen by AWS 2 tests
+     *
+     * @param services
+     */
+    public void removeClient(Service[] services) {
+        for (Service service : services) {
+            String s = camelServiceAcronym(service);
+            properties.remove("camel.component.aws2-" + s + ".access-key");
+            properties.remove("camel.component.aws2-" + s + ".secret-key");
+            properties.remove("camel.component.aws2-" + s + ".region");
+        }
+    }
+
+    /**
      * Add an {@link AutoCloseable} to be closed after running AWS 2 tests
      *
      * @param  closeable the {@link AutoCloseable} to add
@@ -120,6 +134,10 @@ public class Aws2TestEnvContext {
             } catch (Exception e) {
                 LOG.warnf(e, "Could not close %s", c);
             }
+        }
+
+        if (localstack.isPresent()) {
+            localstack.get().stop();
         }
     }
 
@@ -189,4 +207,17 @@ public class Aws2TestEnvContext {
     public String getRegion() {
         return region;
     }
+
+    public String getAccessKey() {
+        return accessKey;
+    }
+
+    public String getSecretKey() {
+        return secretKey;
+    }
+
+    public boolean isLocalStack() {
+        return localstack.isPresent();
+    }
+
 }

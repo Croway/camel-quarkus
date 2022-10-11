@@ -17,17 +17,24 @@
 package org.apache.camel.quarkus.component.platform.http.it;
 
 import java.io.ByteArrayOutputStream;
+import java.security.Principal;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 import javax.activation.DataHandler;
 
+import io.quarkus.security.identity.SecurityIdentity;
+import io.quarkus.vertx.http.runtime.security.QuarkusHttpUser;
 import org.apache.camel.Exchange;
+import org.apache.camel.Message;
 import org.apache.camel.attachment.AttachmentMessage;
 import org.apache.camel.builder.RouteBuilder;
+import org.apache.camel.component.platform.http.PlatformHttpConstants;
+import org.apache.camel.component.platform.http.vertx.VertxPlatformHttpConstants;
 import org.apache.camel.component.webhook.WebhookConfiguration;
 import org.apache.camel.model.rest.RestBindingMode;
+import org.apache.camel.spi.Registry;
 
 public class PlatformHttpRouteBuilder extends RouteBuilder {
     @SuppressWarnings("unchecked")
@@ -41,14 +48,41 @@ public class PlatformHttpRouteBuilder extends RouteBuilder {
 
         rest()
                 .get("/platform-http/rest-get")
-                .route()
-                .setBody(constant("GET: /rest-get"))
-                .endRest()
+                .to("direct:echoMethodPath")
                 .post("/platform-http/rest-post")
                 .consumes("text/plain").produces("text/plain")
-                .route()
-                .setBody(constant("POST: /rest-post"))
-                .endRest();
+                .to("direct:echoMethodPath");
+
+        from("direct:echoMethodPath")
+                .setBody().simple("${header.CamelHttpMethod}: ${header.CamelHttpPath}");
+
+        from("direct:greet")
+                .setBody().simple("Hello ${header.name}");
+
+        from("platform-http:/registry/inspect")
+                .process(e -> {
+                    Registry registry = e.getContext().getRegistry();
+
+                    Object engine = registry.lookupByName(PlatformHttpConstants.PLATFORM_HTTP_ENGINE_NAME);
+                    Object component = registry.lookupByName(PlatformHttpConstants.PLATFORM_HTTP_COMPONENT_NAME);
+
+                    String engineClassName = "";
+                    String componentClassName = "";
+
+                    if (engine != null) {
+                        engineClassName = engine.getClass().getName();
+                    }
+
+                    if (component != null) {
+                        componentClassName = component.getClass().getName();
+                    }
+
+                    String json = String.format("{\"engine\": \"%s\", \"component\": \"%s\"}", engineClassName,
+                            componentClassName);
+                    Message message = e.getMessage();
+                    message.setHeader(Exchange.CONTENT_TYPE, "application/json");
+                    message.setBody(json);
+                });
 
         from("platform-http:/platform-http/hello?httpMethodRestrict=GET").setBody(simple("Hello ${header.name}"));
         from("platform-http:/platform-http/get-post?httpMethodRestrict=GET,POST").setBody(simple("Hello ${body}"));
@@ -93,9 +127,18 @@ public class PlatformHttpRouteBuilder extends RouteBuilder {
         from("platform-http:/platform-http/produces?httpMethodRestrict=POST&produces=text/plain")
                 .setBody(simple("Hello ${body}"));
 
-        /* 204 tests */
+        from("platform-http:/platform-http/allmethods")
+                .setBody(simple("Hello ${header.CamelHttpMethod}"));
+
+        from("platform-http:/platform-http/path/prefix?matchOnUriPrefix=true")
+                .setBody(simple("Hello ${header.CamelHttpPath}"));
+
+        from("platform-http:/platform-http/log?httpMethodRestrict=POST&consumes=text/plain")
+                .log("Hello ${body}");
+
+        // 204 tests
         from("platform-http:/platform-http/null-body")
-                .setBody(constant(null));
+                .setBody().constant(null);
         from("platform-http:/platform-http/empty-string-body")
                 .setBody().constant("");
         from("platform-http:/platform-http/some-string")
@@ -104,13 +147,11 @@ public class PlatformHttpRouteBuilder extends RouteBuilder {
                 .setHeader(Exchange.HTTP_RESPONSE_CODE, constant(200))
                 .setBody().constant("");
 
-        /* Path parameters */
+        // Path parameters
         rest()
                 .get("/platform-http/hello-by-name/{name}")
                 .produces("text/plain")
-                .route()
-                .setBody(e -> "Hello " + e.getIn().getHeader("name", String.class))
-                .endRest();
+                .to("direct:greet");
 
         // Webhook tests
         from("platform-http:/platform-http/webhookpath")
@@ -118,5 +159,16 @@ public class PlatformHttpRouteBuilder extends RouteBuilder {
 
         from("webhook:webhook-delegate://test")
                 .transform(body().prepend("Hello "));
+
+        // Basic auth security tests
+        from("platform-http:/platform-http/secure/basic")
+                .process(exchange -> {
+                    Message message = exchange.getMessage();
+                    QuarkusHttpUser user = message.getHeader(VertxPlatformHttpConstants.AUTHENTICATED_USER,
+                            QuarkusHttpUser.class);
+                    SecurityIdentity securityIdentity = user.getSecurityIdentity();
+                    Principal principal = securityIdentity.getPrincipal();
+                    message.setBody(principal.getName() + ":" + securityIdentity.getRoles().iterator().next());
+                });
     }
 }

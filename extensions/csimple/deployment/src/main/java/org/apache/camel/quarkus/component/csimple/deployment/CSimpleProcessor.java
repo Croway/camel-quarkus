@@ -20,7 +20,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.net.URISyntaxException;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -49,6 +49,7 @@ import io.quarkus.bootstrap.classloading.ClassPathElement;
 import io.quarkus.bootstrap.classloading.QuarkusClassLoader;
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
+import io.quarkus.deployment.annotations.Consume;
 import io.quarkus.deployment.annotations.ExecutionTime;
 import io.quarkus.deployment.annotations.Record;
 import io.quarkus.deployment.builditem.FeatureBuildItem;
@@ -78,6 +79,7 @@ import org.apache.camel.quarkus.core.deployment.spi.CamelBeanBuildItem;
 import org.apache.camel.quarkus.core.deployment.spi.CamelContextBuildItem;
 import org.apache.camel.quarkus.core.deployment.spi.CamelRoutesBuilderClassBuildItem;
 import org.apache.camel.quarkus.core.deployment.spi.CompiledCSimpleExpressionBuildItem;
+import org.apache.camel.quarkus.core.util.FileUtils;
 import org.apache.camel.util.PropertiesHelper;
 import org.jboss.logging.Logger;
 
@@ -93,11 +95,11 @@ class CSimpleProcessor {
     }
 
     @BuildStep
-    void collectCSimpleExpresions(
+    void collectCSimpleExpressions(
             CamelConfig config,
             List<CamelRoutesBuilderClassBuildItem> routesBuilderClasses,
             BuildProducer<CSimpleExpressionSourceBuildItem> csimpleExpressions)
-            throws IOException, ClassNotFoundException, URISyntaxException, JAXBException {
+            throws ClassNotFoundException {
 
         if (!routesBuilderClasses.isEmpty()) {
             final ClassLoader loader = Thread.currentThread().getContextClassLoader();
@@ -114,11 +116,11 @@ class CSimpleProcessor {
                 final Class<?> cl = loader.loadClass(className);
 
                 if (!RouteBuilder.class.isAssignableFrom(cl)) {
-                    LOG.warnf("CSimple language expressions ocurring in %s won't be compiled at build time", cl);
+                    LOG.warnf("CSimple language expressions occurring in %s won't be compiled at build time", cl);
                 } else {
                     try {
-                        final RouteBuilder rb = (RouteBuilder) cl.newInstance();
-                        rb.setContext(ctx);
+                        final RouteBuilder rb = (RouteBuilder) cl.getDeclaredConstructor().newInstance();
+                        rb.setCamelContext(ctx);
                         try {
                             rb.configure();
                             collector.collect(
@@ -154,7 +156,8 @@ class CSimpleProcessor {
                             }
                         }
 
-                    } catch (InstantiationException | IllegalAccessException e) {
+                    } catch (InstantiationException | IllegalAccessException | NoSuchMethodException
+                            | InvocationTargetException e) {
                         throw new RuntimeException("Could not instantiate " + className, e);
                     }
                 }
@@ -163,7 +166,7 @@ class CSimpleProcessor {
     }
 
     @BuildStep
-    void compileCSimpleExpresions(
+    void compileCSimpleExpressions(
             List<CSimpleExpressionSourceBuildItem> expressionSources,
             BuildProducer<CompiledCSimpleExpressionBuildItem> compiledCSimpleExpression,
             BuildProducer<GeneratedClassBuildItem> generatedClasses) throws IOException {
@@ -230,7 +233,7 @@ class CSimpleProcessor {
                         .filter(p -> p.getFileName().toString().endsWith(CLASS_EXT))
                         .forEach(p -> {
                             final Path relPath = csimpleClassesDir.relativize(p);
-                            String className = relPath.toString();
+                            String className = FileUtils.nixifyPath(relPath.toString());
                             className = className.substring(0, className.length() - CLASS_EXT.length());
                             try {
                                 final GeneratedClassBuildItem item = new GeneratedClassBuildItem(true, className,
@@ -247,10 +250,10 @@ class CSimpleProcessor {
 
     @Record(ExecutionTime.STATIC_INIT)
     @BuildStep
+    @Consume(CamelContextBuildItem.class)
     CamelBeanBuildItem configureCSimpleLanguage(
             RecorderContext recorderContext,
             CSimpleLanguageRecorder recorder,
-            CamelContextBuildItem camelContext,
             List<CompiledCSimpleExpressionBuildItem> compiledCSimpleExpressions) {
 
         final RuntimeValue<Builder> builder = recorder.csimpleLanguageBuilder();
@@ -267,7 +270,7 @@ class CSimpleProcessor {
         while (confiUrls.hasMoreElements()) {
             final URL configUrl = confiUrls.nextElement();
             try (BufferedReader r = new BufferedReader(new InputStreamReader(configUrl.openStream(), StandardCharsets.UTF_8))) {
-                String line = null;
+                String line;
                 while ((line = r.readLine()) != null) {
                     line = line.trim();
                     // skip comments
@@ -305,13 +308,15 @@ class CSimpleProcessor {
         return new CompilationProvider.Context(
                 "csimple-project",
                 classPathElements,
+                classPathElements,
                 projectDir.toFile(),
                 projectDir.resolve("src/main/java").toFile(),
                 csimpleClassesDir.toFile(),
                 StandardCharsets.UTF_8.name(),
-                Collections.emptyList(),
-                "1.8",
-                "1.8",
+                Collections.emptyMap(),
+                null,
+                "11",
+                "11",
                 Collections.emptyList(),
                 Collections.emptyList());
     }
@@ -321,14 +326,14 @@ class CSimpleProcessor {
      */
     static class ExpressionCollector {
         private final JAXBContext jaxbContext;
-        private final Marshaller marshaler;
+        private final Marshaller marshaller;
 
         ExpressionCollector(ClassLoader loader) {
             try {
                 jaxbContext = JAXBContext.newInstance(Constants.JAXB_CONTEXT_PACKAGES, loader);
                 Marshaller m = jaxbContext.createMarshaller();
                 m.setListener(new RouteDefinitionNormalizer());
-                marshaler = m;
+                marshaller = m;
             } catch (JAXBException e) {
                 throw new RuntimeException("Could not creat a JAXB marshaler", e);
             }
@@ -339,7 +344,7 @@ class CSimpleProcessor {
                     expressionConsumer);
             for (NamedNode node : nodes) {
                 try {
-                    marshaler.marshal(node, handler);
+                    marshaller.marshal(node, handler);
                 } catch (JAXBException e) {
                     throw new RuntimeException("Could not collect '" + languageName + "' expressions from node " + node, e);
                 }
@@ -356,7 +361,6 @@ class CSimpleProcessor {
                 }
             }
         }
-
     }
 
 }

@@ -24,7 +24,9 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
@@ -102,6 +104,11 @@ class XsltProcessor {
 
                 try {
                     TransformerFactory tf = new XalanTransformerFactory();
+
+                    for (Map.Entry<String, Boolean> entry : config.features.entrySet()) {
+                        tf.setFeature(entry.getKey(), entry.getValue());
+                    }
+
                     tf.setAttribute("generate-translet", true);
                     tf.setAttribute("translet-name", resolvedUri.transletClassName);
                     tf.setAttribute("package-name", config.packageName);
@@ -113,27 +120,32 @@ class XsltProcessor {
                 }
             }
 
-            Files.walk(destination)
-                    .sorted(Comparator.reverseOrder())
-                    .filter(Files::isRegularFile)
-                    .filter(path -> path.toString().endsWith(".class"))
-                    .forEach(path -> {
-                        try {
-                            final Path rel = destination.relativize(path);
-                            final String fqcn = StringUtils.removeEnd(rel.toString(), ".class").replace('/', '.');
-                            final byte[] data = Files.readAllBytes(path);
+            try (Stream<Path> files = Files.walk(destination)) {
+                files
+                        .sorted(Comparator.reverseOrder())
+                        .filter(Files::isRegularFile)
+                        .filter(path -> path.toString().endsWith(".class"))
+                        .forEach(path -> {
+                            try {
+                                final Path rel = destination.relativize(path);
+                                final String fqcn = StringUtils.removeEnd(rel.toString(), ".class").replace(File.separatorChar,
+                                        '.');
+                                final byte[] data = Files.readAllBytes(path);
 
-                            generatedClasses.produce(new GeneratedClassBuildItem(false, fqcn, data));
-                            generatedNames.produce(new XsltGeneratedClassBuildItem(fqcn));
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                    });
+                                generatedClasses.produce(new GeneratedClassBuildItem(false, fqcn, data));
+                                generatedNames.produce(new XsltGeneratedClassBuildItem(fqcn));
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                        });
+            }
         } finally {
-            Files.walk(destination)
-                    .sorted(Comparator.reverseOrder())
-                    .map(Path::toFile)
-                    .forEach(File::delete);
+            try (Stream<Path> files = Files.walk(destination)) {
+                files
+                        .sorted(Comparator.reverseOrder())
+                        .map(Path::toFile)
+                        .forEach(File::delete);
+            }
         }
     }
 

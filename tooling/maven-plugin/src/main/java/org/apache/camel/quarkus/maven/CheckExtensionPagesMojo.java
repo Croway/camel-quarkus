@@ -18,15 +18,11 @@ package org.apache.camel.quarkus.maven;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
@@ -46,9 +42,7 @@ import org.apache.maven.plugins.annotations.Parameter;
  * Performs the following tasks:
  * <ul>
  * <li>Deletes extension pages whose extensions do not exist anymore
- * <li>Creates dummy partials for Camel bits that Camel Quarkus does not support, so that there are no warnings when
- * they are included from the Camel component pages
- * <li>Deletes Camel bit partials that do not exist anymore.
+ * <li>Deletes yml descriptors for extensions that do not exist anymore.
  * <li>Synchronizes nav.adoc with the reality
  * <ul>
  */
@@ -56,13 +50,12 @@ import org.apache.maven.plugins.annotations.Parameter;
 public class CheckExtensionPagesMojo extends AbstractDocGeneratorMojo {
 
     private static final Pattern ADOC_ENDING_PATTERN = Pattern.compile("\\.adoc$");
-    private static final byte[] DUMMY_COMPONENT_FILE_COMMENT = "// Empty partial for a Camel bit unsupported by Camel Quarkus to avoid warnings when this file is included from a Camel page\n"
-            .getBytes(StandardCharsets.UTF_8);
+    private static final Pattern YML_ENDING_PATTERN = Pattern.compile("\\.yml$");
 
     /**
      * The directory relative to which the catalog data is read.
      */
-    @Parameter(defaultValue = "${project.build.directory}/classes", property = "camel-quarkus.catalogBaseDir")
+    @Parameter(defaultValue = "${project.build.directory}/classes", property = "cq.catalogBaseDir")
     File catalogBaseDir;
 
     /**
@@ -70,18 +63,6 @@ public class CheckExtensionPagesMojo extends AbstractDocGeneratorMojo {
      */
     @Parameter(defaultValue = "${maven.multiModuleProjectDirectory}/docs")
     File docsBaseDir;
-
-    /**
-     * List of directories that contain extensions
-     */
-    @Parameter(property = "cq.extensionDirectories", required = true)
-    List<File> extensionDirectories;
-
-    /**
-     * A set of artifactIdBases that are not extensions and should be excluded from the catalog
-     */
-    @Parameter(property = "cq.skipArtifactIdBases")
-    Set<String> skipArtifactIdBases;
 
     /**
      * The version of Camel we depend on
@@ -108,9 +89,6 @@ public class CheckExtensionPagesMojo extends AbstractDocGeneratorMojo {
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         final Path docsBasePath = docsBaseDir.toPath();
-        if (skipArtifactIdBases == null) {
-            skipArtifactIdBases = Collections.emptySet();
-        }
 
         camelBits(docsBasePath);
         extensions(docsBasePath);
@@ -120,7 +98,7 @@ public class CheckExtensionPagesMojo extends AbstractDocGeneratorMojo {
     void camelBits(Path docsBasePath) {
         final CqCatalog cqCatalog = new CqCatalog(catalogBaseDir.toPath(), Flavor.camelQuarkus);
 
-        final Path referenceDir = docsBasePath.resolve("modules/ROOT/partials/reference");
+        final Path referenceDir = docsBasePath.resolve("modules/ROOT/examples");
         try (GavCqCatalog camelCatalog = GavCqCatalog.open(Paths.get(localRepository), Flavor.camel, camelVersion)) {
 
             CqCatalog.kinds().forEach(kind -> {
@@ -143,18 +121,10 @@ public class CheckExtensionPagesMojo extends AbstractDocGeneratorMojo {
                 }
                 try (Stream<Path> kindFiles = Files.list(kindDir)) {
                     kindFiles.forEach(kindFile -> {
-                        final String artifactIdBase = ADOC_ENDING_PATTERN.matcher(kindFile.getFileName().toString())
+                        final String artifactIdBase = YML_ENDING_PATTERN.matcher(kindFile.getFileName().toString())
                                 .replaceAll("");
                         if (cqNames.contains(artifactIdBase)) {
                             /* Nothing to do, this should have been done by UpdateExtensionDocPageMojo */
-                        } else if (camelNames.contains(artifactIdBase)) {
-                            try {
-                                if (!Arrays.equals(DUMMY_COMPONENT_FILE_COMMENT, Files.readAllBytes(kindFile))) {
-                                    Files.write(kindFile, DUMMY_COMPONENT_FILE_COMMENT);
-                                }
-                            } catch (IOException e) {
-                                throw new RuntimeException("Could not read or write " + kindFile, e);
-                            }
                         } else {
                             try {
                                 Files.delete(kindFile);
@@ -166,17 +136,6 @@ public class CheckExtensionPagesMojo extends AbstractDocGeneratorMojo {
                 } catch (IOException e) {
                     throw new RuntimeException("Could not list " + kindDir, e);
                 }
-
-                for (String name : camelNames) {
-                    final Path kindFile = kindDir.resolve(name + ".adoc");
-                    if (!Files.isRegularFile(kindFile)) {
-                        try {
-                            Files.write(kindFile, DUMMY_COMPONENT_FILE_COMMENT);
-                        } catch (IOException e) {
-                            throw new RuntimeException("Could not write " + kindFile, e);
-                        }
-                    }
-                }
             });
         }
 
@@ -186,17 +145,13 @@ public class CheckExtensionPagesMojo extends AbstractDocGeneratorMojo {
 
         final Set<String> artifactIdBases = new HashSet<>();
         final Set<CamelQuarkusExtension> extensions = new TreeSet<>(Comparator.comparing(e -> e.getName().get()));
-        extensionDirectories.stream()
-                .map(File::toPath)
-                .forEach(extDir -> {
-                    CqUtils.findExtensionArtifactIdBases(extDir)
-                            .filter(artifactIdBase -> !skipArtifactIdBases.contains(artifactIdBase))
-                            .forEach(artifactIdBase -> {
-                                artifactIdBases.add(artifactIdBase);
-                                final Path runtimePomXmlPath = extDir.resolve(artifactIdBase).resolve("runtime/pom.xml")
-                                        .toAbsolutePath().normalize();
-                                extensions.add(CamelQuarkusExtension.read(runtimePomXmlPath));
-                            });
+        findExtensions()
+                .forEach(ext -> {
+                    final String artifactIdBase = ext.getArtifactIdBase();
+                    artifactIdBases.add(artifactIdBase);
+                    final Path runtimePomXmlPath = ext.getExtensionDir().resolve("runtime/pom.xml")
+                            .toAbsolutePath().normalize();
+                    extensions.add(CamelQuarkusExtension.read(runtimePomXmlPath));
                 });
 
         final String extLinks = extensions.stream()
@@ -223,12 +178,14 @@ public class CheckExtensionPagesMojo extends AbstractDocGeneratorMojo {
 
     void replace(Path path, String replacementKey, String value) {
         try {
-            String document = new String(Files.readAllBytes(path), encoding);
-            document = replace(document, path, replacementKey, value);
-            try {
-                Files.write(path, document.getBytes(encoding));
-            } catch (IOException e) {
-                throw new RuntimeException("Could not write to " + path, e);
+            final String oldDocument = new String(Files.readAllBytes(path), encoding);
+            final String newDocument = replace(oldDocument, path, replacementKey, value);
+            if (!oldDocument.equals(newDocument)) {
+                try {
+                    Files.write(path, newDocument.getBytes(encoding));
+                } catch (IOException e) {
+                    throw new RuntimeException("Could not write to " + path, e);
+                }
             }
         } catch (IOException e) {
             throw new RuntimeException("Could not read from " + path, e);

@@ -16,9 +16,15 @@
  */
 package org.apache.camel.quarkus.component.file.it;
 
+import java.io.File;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.enterprise.context.ApplicationScoped;
@@ -38,6 +44,7 @@ import org.apache.camel.ConsumerTemplate;
 import org.apache.camel.Exchange;
 import org.apache.camel.ProducerTemplate;
 import org.apache.camel.component.mock.MockEndpoint;
+import org.awaitility.Awaitility;
 
 @Path("/file")
 @ApplicationScoped
@@ -91,15 +98,20 @@ public class FileResource {
 
     @Path("/getFromMock/{mockId}")
     @GET
-    public String getFromMock(@PathParam("mockId") String mockId) throws Exception {
+    public String getFromMock(@PathParam("mockId") String mockId) {
         MockEndpoint mockEndpoint = context.getEndpoint("mock:" + mockId, MockEndpoint.class);
 
         String result = mockEndpoint.getExchanges().stream().map(e -> e.getIn().getBody(String.class))
                 .collect(Collectors.joining(SEPARATOR));
 
-        mockEndpoint.reset();
-
         return result;
+    }
+
+    @Path("/resetMock/{mockId}")
+    @GET
+    public void resetMock(@PathParam("mockId") String mockId) {
+        MockEndpoint mockEndpoint = context.getEndpoint("mock:" + mockId, MockEndpoint.class);
+        mockEndpoint.reset();
     }
 
     @Path("/create/{folder}")
@@ -125,4 +137,50 @@ public class FileResource {
                 .entity(response.getMessage().getHeader(Exchange.FILE_NAME_PRODUCED))
                 .build();
     }
+
+    @Path("/route/{route}")
+    @POST
+    @Consumes(MediaType.TEXT_PLAIN)
+    public String pollEnrich(String body, @PathParam("route") String route) throws Exception {
+        return producerTemplate.requestBody("direct:" + route, body, String.class);
+    }
+
+    @Path("/writeThenReadFileWithCharsetShouldSucceed")
+    @GET
+    public void writeThenReadFileWithCharsetShouldSucceed() throws Exception {
+
+        // Delete any charset encoded files that would reside from a previous run
+        Files.deleteIfExists(Paths.get("target/charsetIsoRead/charsetEncodedFile.txt"));
+        Files.deleteIfExists(Paths.get("target/charsetIsoWrite/charsetEncodedFile.txt"));
+
+        // Using a charset that has few chance to be the default one on the build platform
+        String charsetName = "ISO-8859-1";
+        String unencodedContent = "A string with ð char";
+        byte[] encodedContent = unencodedContent.getBytes(charsetName);
+
+        // Produce in the folder named 'charsetIsoWrite' and check the content is encoded as expected
+        producerTemplate.request("file:target/charsetIsoWrite/?charset=" + charsetName, ex -> {
+            ex.getMessage().setHeader(Exchange.FILE_NAME, "charsetEncodedFile.txt");
+            ex.getMessage().setBody(unencodedContent);
+        });
+        Awaitility.await().atMost(10, TimeUnit.SECONDS).until(() -> {
+            File file = new File("target/charsetIsoWrite/charsetEncodedFile.txt");
+            return Arrays.equals(encodedContent, Files.readAllBytes(file.toPath()));
+        });
+
+        // Move the encoded file to the read folder
+        java.nio.file.Path source = Paths.get("target/charsetIsoWrite/charsetEncodedFile.txt");
+        java.nio.file.Path destination = Paths.get("target/charsetIsoRead/charsetEncodedFile.txt");
+        Files.move(source, destination, StandardCopyOption.ATOMIC_MOVE);
+
+        // Start the route to consume the encoded file
+        context.getRouteController().startRoute("charsetIsoRead");
+
+        // Check that the consumed file content has been decoded as expected
+        Awaitility.await().atMost(10, TimeUnit.SECONDS).until(() -> {
+            String decodedContent = getFromMock("charsetIsoRead");
+            return unencodedContent.equals(decodedContent);
+        });
+    }
+
 }

@@ -16,12 +16,17 @@
  */
 package org.apache.camel.quarkus.component.kamelet.it;
 
+import java.util.ArrayList;
+import java.util.Map;
+
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
+import io.restassured.response.Response;
 import org.junit.jupiter.api.Test;
 
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @QuarkusTest
 class KameletTest {
@@ -64,5 +69,46 @@ class KameletTest {
                 .then()
                 .statusCode(200)
                 .body(is("Hello Camel Quarkus Kamelet Chained Route"));
+    }
+
+    @Test
+    public void testInvoke() {
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body("Kamelet")
+                .post("/kamelet/invoke/AppendWithBean")
+                .then()
+                .statusCode(200)
+                .body(is("Kamelet-suffix"));
+
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body("Kamelet2")
+                .post("/kamelet/invoke/AppendWithClass")
+                .then()
+                .statusCode(200)
+                .body(is("Kamelet2-suffix"));
+    }
+
+    @Test
+    public void testDiscovered() {
+        Response resp = RestAssured.given()
+                .contentType(ContentType.JSON)
+                .when().get("/kamelet/list");
+        resp.then().statusCode(200);
+
+        ArrayList<Map<String, ?>> jsonAsArrayList = resp.body()
+                .jsonPath().get("");
+        assertTrue(jsonAsArrayList.contains("injector"));
+        assertTrue(jsonAsArrayList.contains("logger"));
+    }
+
+    @Test
+    public void testKameletLocationAtRuntime() {
+        RestAssured.given()
+                .post("/kamelet/locationAtRuntime/Hello")
+                .then()
+                .statusCode(200)
+                .body(is("HELLO"));
     }
 }

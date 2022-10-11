@@ -16,9 +16,20 @@
  */
 package org.apache.camel.quarkus.support.spring.test;
 
+import java.io.File;
+import java.net.JarURLConnection;
+import java.net.URL;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.jar.Attributes;
+import java.util.jar.Manifest;
+import java.util.regex.Pattern;
+
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @QuarkusTest
 public class SpringSupportTest {
@@ -43,6 +54,41 @@ public class SpringSupportTest {
                     .get("/classloading/{className}")
                     .then()
                     .statusCode(204);
+        }
+    }
+
+    @Test
+    public void verifySourcesJarManifest() throws Exception {
+        String[] springModules = new String[] { "beans", "context", "core" };
+        for (String module : springModules) {
+            Path path = Paths.get("../" + module + "/target");
+            File file = path.toFile();
+            if (!file.exists()) {
+                throw new IllegalStateException("The sources JAR location does not exist: " + file.getAbsolutePath());
+            }
+
+            final Pattern pattern = Pattern.compile("^camel-quarkus-support-spring-" + module + "-.*-sources.jar");
+            File[] files = file
+                    .listFiles(f -> pattern.matcher(f.getName()).matches());
+
+            if (files.length == 1) {
+                URL url = new URL("jar:file:" + files[0].getAbsolutePath() + "!/");
+                JarURLConnection jarConnection = (JarURLConnection) url.openConnection();
+                Manifest manifest = jarConnection.getManifest();
+                assertNotNull(manifest);
+
+                Attributes attributes = manifest.getMainAttributes();
+                assertNotNull(attributes.getValue("Specification-Version"));
+                assertNotNull(attributes.getValue("Implementation-Version"));
+            } else if (files.length == 0) {
+                throw new IllegalStateException(
+                        "Detected no camel-quarkus-support-spring-" + module + " sources JAR in: "
+                                + file.getAbsolutePath());
+            } else {
+                throw new IllegalStateException(
+                        "Detected multiple camel-quarkus-support-spring-" + module + " sources JARs in: "
+                                + file.getAbsolutePath());
+            }
         }
     }
 }

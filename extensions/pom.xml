@@ -22,8 +22,9 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>org.apache.camel.quarkus</groupId>
-        <artifactId>camel-quarkus</artifactId>
-        <version>1.9.0-SNAPSHOT</version>
+        <artifactId>camel-quarkus-build-parent</artifactId>
+        <version>2.14.0-SNAPSHOT</version>
+        <relativePath>../poms/build-parent/pom.xml</relativePath>
     </parent>
 
     <artifactId>camel-quarkus-extensions</artifactId>
@@ -34,8 +35,6 @@
     <modules>
         <!-- extensions a..z; do not remove this comment, it is important when sorting via  mvn process-resources -Pformat -->
         <module>activemq</module>
-        <module>ahc</module>
-        <module>ahc-ws</module>
         <module>amqp</module>
         <module>arangodb</module>
         <module>as2</module>
@@ -76,7 +75,7 @@
         <module>caffeine</module>
         <module>cassandraql</module>
         <module>cbor</module>
-        <module>componentdsl</module>
+        <module>cloudevents</module>
         <module>consul</module>
         <module>controlbus</module>
         <module>couchdb</module>
@@ -84,7 +83,10 @@
         <module>crypto</module>
         <module>csimple</module>
         <module>csv</module>
+        <module>cxf-soap</module>
         <module>dataformat</module>
+        <module>dataset</module>
+        <module>datasonnet</module>
         <module>debezium-mongodb</module>
         <module>debezium-mysql</module>
         <module>debezium-postgres</module>
@@ -95,7 +97,6 @@
         <module>dozer</module>
         <module>dropbox</module>
         <module>elasticsearch-rest</module>
-        <module>endpointdsl</module>
         <module>exec</module>
         <module>fhir</module>
         <module>file</module>
@@ -122,21 +123,23 @@
         <module>headersmap</module>
         <module>hl7</module>
         <module>http</module>
-        <module>hystrix</module>
         <module>ical</module>
         <module>infinispan</module>
         <module>influxdb</module>
-        <module>ipfs</module>
         <module>jackson</module>
+        <module>jackson-avro</module>
+        <module>jackson-protobuf</module>
         <module>jacksonxml</module>
         <module>jaxb</module>
+        <module>jcache</module>
         <module>jdbc</module>
-        <module>jing</module>
+        <module>jfr</module>
         <module>jira</module>
         <module>jms</module>
         <module>johnzon</module>
         <module>jolt</module>
         <module>jpa</module>
+        <module>jq</module>
         <module>js-dsl</module>
         <module>jsch</module>
         <module>jslt</module>
@@ -147,9 +150,13 @@
         <module>jta</module>
         <module>kafka</module>
         <module>kamelet</module>
+        <module>knative</module>
+        <module>knative-consumer</module>
+        <module>knative-producer</module>
         <module>kotlin</module>
         <module>kubernetes</module>
         <module>kudu</module>
+        <module>language</module>
         <module>leveldb</module>
         <module>log</module>
         <module>lra</module>
@@ -166,18 +173,17 @@
         <module>mock</module>
         <module>mongodb</module>
         <module>mongodb-gridfs</module>
-        <module>msv</module>
         <module>mustache</module>
-        <module>nagios</module>
+        <module>mybatis</module>
         <module>nats</module>
         <module>netty</module>
         <module>netty-http</module>
         <module>nitrite</module>
-        <module>nsq</module>
         <module>oaipmh</module>
         <module>olingo4</module>
         <module>openapi-java</module>
         <module>openstack</module>
+        <module>opentelemetry</module>
         <module>opentracing</module>
         <module>optaplanner</module>
         <module>paho</module>
@@ -220,7 +226,6 @@
         <module>stream</module>
         <module>stringtemplate</module>
         <module>syslog</module>
-        <module>tagsoup</module>
         <module>tarfile</module>
         <module>telegram</module>
         <module>tika</module>
@@ -232,7 +237,6 @@
         <module>velocity</module>
         <module>vertx</module>
         <module>vertx-http</module>
-        <module>vertx-kafka</module>
         <module>vertx-websocket</module>
         <module>vm</module>
         <module>weather</module>
@@ -245,5 +249,24 @@
         <module>zip-deflater</module>
         <module>zipfile</module>
     </modules>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.quarkus</groupId>
+                <artifactId>quarkus-bom</artifactId>
+                <version>${quarkus.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.camel.quarkus</groupId>
+                <artifactId>camel-quarkus-bom</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
 </project>

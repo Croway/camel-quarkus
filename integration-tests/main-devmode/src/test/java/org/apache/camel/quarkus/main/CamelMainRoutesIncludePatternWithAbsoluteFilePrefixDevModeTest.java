@@ -26,10 +26,14 @@ import java.nio.file.StandardCopyOption;
 import java.util.Comparator;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import io.quarkus.test.QuarkusDevModeTest;
 import io.restassured.RestAssured;
 import io.restassured.response.Response;
+import org.apache.camel.quarkus.core.util.FileUtils;
+import org.apache.camel.util.FileUtil;
 import org.jboss.shrinkwrap.api.ShrinkWrap;
 import org.jboss.shrinkwrap.api.asset.Asset;
 import org.jboss.shrinkwrap.api.asset.StringAsset;
@@ -37,11 +41,14 @@ import org.jboss.shrinkwrap.api.spec.JavaArchive;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+@DisabledOnOs(OS.WINDOWS)
 public class CamelMainRoutesIncludePatternWithAbsoluteFilePrefixDevModeTest {
     static Path BASE;
 
@@ -63,18 +70,28 @@ public class CamelMainRoutesIncludePatternWithAbsoluteFilePrefixDevModeTest {
 
     @AfterAll
     public static void cleanUp() throws IOException {
-        Files.walk(BASE)
-                .sorted(Comparator.reverseOrder())
-                .map(Path::toFile)
-                .forEach(File::delete);
+        Consumer<? super File> deleteFile = File::delete;
+        if (FileUtil.isWindows()) {
+            // File may be locked by the Quarkus process, so clean up on VM exit
+            deleteFile = File::deleteOnExit;
+        }
+
+        try (Stream<Path> files = Files.walk(BASE)) {
+            files
+                    .sorted(Comparator.reverseOrder())
+                    .map(Path::toFile)
+                    .forEach(deleteFile);
+        }
     }
 
     public static Asset applicationProperties() {
+        String routeXmlPath = FileUtils.nixifyPath(BASE.toAbsolutePath() + "/routes.xml");
+
         Writer writer = new StringWriter();
 
         Properties props = new Properties();
         props.setProperty("quarkus.banner.enabled", "false");
-        props.setProperty("camel.main.routes-include-pattern", "file:" + BASE.toAbsolutePath().toString() + "/routes.xml");
+        props.setProperty("camel.main.routes-include-pattern", "file:" + routeXmlPath);
 
         try {
             props.store(writer, "");

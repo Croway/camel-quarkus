@@ -38,7 +38,6 @@ import org.jboss.logging.Logger;
 public class JsonDataformatsResource {
 
     private static final Logger LOG = Logger.getLogger(JsonDataformatsResource.class);
-
     @Inject
     ProducerTemplate producerTemplate;
     @Inject
@@ -57,7 +56,7 @@ public class JsonDataformatsResource {
 
     @Path("/out")
     @POST
-    @Produces(MediaType.TEXT_PLAIN)
+    @Produces(MediaType.APPLICATION_JSON)
     public String testOrder(@QueryParam("json-component") String jsonComponent) {
         LOG.infof("Invoking testOrder(%s)", jsonComponent);
         return consumerTemplate.receive("vm:" + jsonComponent + "-out").getMessage().getBody().toString();
@@ -114,6 +113,7 @@ public class JsonDataformatsResource {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.TEXT_XML)
     public String jacksonXmlMarshal(PojoA pojo) {
+
         return producerTemplate.requestBody("direct:jacksonxml-marshal", pojo, String.class);
     }
 
@@ -122,6 +122,7 @@ public class JsonDataformatsResource {
     @Consumes(MediaType.TEXT_XML)
     @Produces(MediaType.APPLICATION_JSON)
     public PojoA jacksonXmlMarshal(String body) {
+
         return producerTemplate.requestBody("direct:jacksonxml-unmarshal", body, PojoA.class);
     }
 

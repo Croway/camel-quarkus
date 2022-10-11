@@ -77,21 +77,21 @@ public class XmlsecurityRoutes extends RouteBuilder {
                 .to("xmlsecurity-verify:transformsXPath?keySelector=#selector");
 
         from("direct:transformsXsltXPath-sign")
-                .to("xmlsecurity-sign:transformsXsltXPath?keyAccessor=#accessor&transformMethods=#transformsXsltXPath");
+                .to("xmlsecurity-sign:transformsXsltXPath?keyAccessor=#accessor&transformMethods=#transformsXsltXPath&cryptoContextProperties=#cryptoContextProperties");
 
         from("direct:transformsXsltXPath-verify")
-                .to("xmlsecurity-verify:transformsXsltXPath?keySelector=#selector&secureValidation=false");
+                .to("xmlsecurity-verify:transformsXsltXPath?keySelector=#selector&secureValidation=false&cryptoContextProperties=#cryptoContextProperties");
 
         from("direct:marshal")
-                .marshal().secureXML(key.getEncoded());
+                .marshal().xmlSecurity(key.getEncoded());
 
         from("direct:unmarshal")
-                .unmarshal().secureXML(key.getEncoded());
+                .unmarshal().xmlSecurity(key.getEncoded());
 
         from("direct:marshal-partial")
-                .marshal().secureXML("//root/test:child-2", namespaces, true, key.getEncoded());
+                .marshal().xmlSecurity("//root/test:child-2", namespaces, true, key.getEncoded());
 
         from("direct:unmarshal-partial")
-                .unmarshal().secureXML("//root/test:child-2", namespaces, true, key.getEncoded());
+                .unmarshal().xmlSecurity("//root/test:child-2", namespaces, true, key.getEncoded());
     }
 }

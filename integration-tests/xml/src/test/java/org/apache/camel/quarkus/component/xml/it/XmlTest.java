@@ -29,20 +29,6 @@ import static org.hamcrest.Matchers.is;
 
 @QuarkusTest
 class XmlTest {
-    @Test
-    public void htmlParse() throws Exception {
-        String html = IOUtils.toString(getClass().getResourceAsStream("/test.html"), Charset.forName("UTF-8"));
-
-        RestAssured.given() //
-                .contentType(ContentType.HTML)
-                .accept(ContentType.TEXT)
-                .body(html)
-                .post("/xml/html-parse")
-                .then()
-                .statusCode(200)
-                .body(is("Paragraph Contents"));
-    }
-
     private static final String BODY = "<mail><subject>Hey</subject><body>Hello world!</body></mail>";
 
     @Test
@@ -56,6 +42,20 @@ class XmlTest {
 
         Assertions.assertEquals(
                 "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?><classpath-xsl subject=\"Hey\"><cheese><mail><subject>Hey</subject><body>Hello world!</body></mail></cheese></classpath-xsl>",
+                actual);
+    }
+
+    @Test
+    public void xsltExtensionFunction() {
+        final String actual = RestAssured.given()
+                .body(BODY)
+                .post("/xml/xslt-extension-function")
+                .then()
+                .statusCode(200)
+                .extract().body().asString().trim().replaceAll(">\\s+<", "><");
+
+        Assertions.assertEquals(
+                "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?><extension-function-xsl>Hey-Hello world!</extension-function-xsl>",
                 actual);
     }
 
@@ -91,8 +91,8 @@ class XmlTest {
                 .extract().body().asString().trim();
 
         Assertions.assertEquals(
-                "= Title\n"
-                        + "\n"
+                "= Title" + System.lineSeparator()
+                        + System.lineSeparator()
                         + "Paragraph Contents",
                 actual);
     }

@@ -6,47 +6,61 @@ Things to consider before you run your application in native mode.
 [[charsets]]
 == Character encodings
 
-By default only the following `Charsets` are available in native mode (https://github.com/oracle/graal/blob/vm-19.3.0/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/jdk/LocalizationFeature.java#L149-L163[source]):
+By default, not all `Charsets` are available in native mode.
 
-[source,text]
-----
-Charset.defaultCharset(), US-ASCII, ISO-8859-1, UTF-8, UTF-16BE, UTF-16LE, UTF-16
-----
-
-If you expect your application to need any encoding not included in this set or if you see
-an `UnsupportedCharsetException` thrown in the native mode, please add the following entry to your
-`application.properties`:
+As such, you may face situations where an encoding is missing in native mode, for instance an application throwing `UnsupportedCharsetException`.
+In such a case, you may consider using the configuration option below:
 
 [source,properties]
 ----
 quarkus.native.add-all-charsets = true
 ----
 
-See also https://quarkus.io/guides/all-config#quarkus-core_quarkus.native.add-all-charsets[quarkus.native.add-all-charsets]
-in Quarkus documentation.
+See also https://quarkus.io/guides/all-config#quarkus-core_quarkus.native.add-all-charsets[quarkus.native.add-all-charsets] in Quarkus documentation.
+
+[[locale]]
+== Locale
+
+By default, only the building JVM default locale is included in the native image.
+Quarkus provides a way to set the locale via `application.properties`, so that you do not need to rely on `LANG` and `LC_*` environement variables:
+
+[source,properties]
+----
+quarkus.native.user-country=US
+quarkus.native.user-language=en
+----
+
+There is also support for embedding multiple locales into the native image
+and for selecting the default locale via GraalVM command line options `-H:IncludeLocales=fr,en`, `H:+IncludeAllLocales` and `-H:DefaultLocale=de`.
+You can set those via the Quarkus `quarkus.native.additional-build-args` property.
 
 [[embedding-resource-in-native-executable]]
 == Embedding resources in the native executable
 
-Resources needed at runtime need to be explicitly embedded in the built native executable. In such situations, the `include-patterns` and `exclude-patterns` configurations could be set in `application.properties` as demonstrated below:
+Resources accessed via `Class.getResource()`, `Class.getResourceAsStream()`, `ClassLoader.getResource()`,
+`ClassLoader.getResourceAsStream()`, etc. at runtime need to be explicitly listed for including in the native executable.
+
+This can be done using Quarkus `quarkus.native.resources.includes` and `quarkus.native.resources.excludes` properties
+in `application.properties` file as demonstrated below:
 
 [source,properties]
 ----
-quarkus.camel.native.resources.include-patterns = docs/*,images/*
-quarkus.camel.native.resources.exclude-patterns = docs/ignored.adoc,images/ignored.png
+quarkus.native.resources.includes = docs/*,images/*
+quarkus.native.resources.excludes = docs/ignored.adoc,images/ignored.png
 ----
 
-In the example above, resources named _docs/included.adoc_ and _images/included.png_ would be embedded in the native executable while _docs/ignored.adoc_ and _images/ignored.png_ would not.
+In the example above, resources named `docs/included.adoc` and `images/included.png` would be embedded in the native executable
+while `docs/ignored.adoc` and `images/ignored.png` would not.
 
-`include-patterns` and `exclude-patterns` are list of comma separated link:https://github.com/apache/camel/blob/main/core/camel-util/src/main/java/org/apache/camel/util/AntPathMatcher.java[Ant-path style patterns].
-At the end of the day, resources matching `include-patterns` are marked for inclusion at the exception of resources matching `exclude-patterns`.
+`resources.includes` and `resources.excludes` are both lists of comma separated Ant-path style glob patterns.
+Please refer to https://quarkus.io/guides/building-native-image#quarkus-native-pkg-native-config_quarkus.native.resources.includes[Quarkus documentation] for more details.
 
 [[using-onexception-clause-in-native-mode]]
 == Using the onException clause in native mode
 
-When using xref:latest@manual::exception-clause.adoc[camel onException handling] in native mode, it is the application developers responsibility to register exception classes for reflection.
+When using xref:manual::exception-clause.adoc[Camel `onException` handling] in native mode, it is the application developers responsibility to register the exception classes for reflection.
 
-For instance, having a camel context with onException handling as below:
+For instance, with an exception handler like this
 
 [source,java]
 ----
@@ -54,7 +68,7 @@ onException(MyException.class).handled(true);
 from("direct:route-that-could-produce-my-exception").throw(MyException.class);
 ----
 
-The class `mypackage.MyException` should be registered for reflection, see more in xref:user-guide/native-mode.adoc#reflection[Registering classes for reflection].
+the class `MyException` should be registered for reflection, see more in xref:user-guide/native-mode.adoc#reflection[Registering classes for reflection].
 
 [[reflection]]
 == Registering classes for reflection
@@ -63,7 +77,7 @@ By default, dynamic reflection is not available in native mode. Classes for whic
 registered for reflection at compile time.
 
 In many cases, application developers do not need to care because Quarkus extensions are able to detect the classes that
-require the reflection and register them automatically.
+require reflection and register them automatically.
 
 However, in some situations, Quarkus extensions may miss some classes and it is up to the application developer to
 register them. There are two ways to do that:
@@ -71,6 +85,26 @@ register them. There are two ways to do that:
 1. The `https://quarkus.io/guides/writing-native-applications-tips#alternative-with-registerforreflection[@io.quarkus.runtime.annotations.RegisterForReflection]`
 annotation can be used to register classes on which it is used, or it can also register third party classes via
 its `targets` attribute.
++
+[source,java]
+----
+import io.quarkus.runtime.annotations.RegisterForReflection;
+
+@RegisterForReflection
+class MyClassAccessedReflectively {
+}
+
+@RegisterForReflection(
+    targets = {
+        org.third-party.Class1.class,
+        org.third-party.Class2.class
+    }
+)
+class ReflectionRegistrations {
+}
+
+----
+
 
 2. The `quarkus.camel.native.reflection` options in `application.properties`:
 +
@@ -81,12 +115,19 @@ quarkus.camel.native.reflection.exclude-patterns = org.apache.commons.lang3.tupl
 ----
 +
 For these options to work properly, the artifacts containing the selected classes
-must either contain a Jandex index ({@code META-INF/jandex.idx}) or they must
-be registered for indexing using the {@code quarkus.index-dependency.*} options
-in {@code application.properties} - e.g.
+must either contain a Jandex index (`META-INF/jandex.idx`) or they must
+be registered for indexing using the `quarkus.index-dependency.*` options
+in `application.properties` - e.g.
 +
 [source,properties]
 ----
 quarkus.index-dependency.commons-lang3.group-id = org.apache.commons
 quarkus.index-dependency.commons-lang3.artifact-id = commons-lang3
 ----
+
+[[serialization]]
+== Registering classes for serialization
+
+If serialization support is requested via `quarkus.camel.native.reflection.serialization-enabled`, the classes listed in https://github.com/apache/camel-quarkus/blob/main/extensions-core/core/deployment/src/main/java/org/apache/camel/quarkus/core/deployment/CamelSerializationProcessor.java[CamelSerializationProcessor.BASE_SERIALIZATION_CLASSES] are automatically registered for serialization.
+
+Users can register more classes using `@io.quarkus.runtime.annotations.RegisterForReflection(serialization = true)`.

@@ -56,7 +56,8 @@ public class QuarkusBindableServiceFactory implements BindableServiceFactory {
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException(
                         "Unable to find generated class for service " + endpoint.getServiceName()));
-        bindableService.setMethodHandler(new GrpcMethodHandler(consumer));
+        GrpcMethodHandler methodHandler = new GrpcMethodHandler(consumer);
+        bindableService.setMethodHandler(methodHandler);
         return bindableService;
     }
 }

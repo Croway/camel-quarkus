@@ -17,6 +17,8 @@
 package org.apache.camel.quarkus.main;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
 import io.quarkus.arc.runtime.BeanContainer;
 import io.quarkus.runtime.RuntimeValue;
@@ -28,10 +30,10 @@ import org.apache.camel.main.MainListener;
 import org.apache.camel.main.MainListenerSupport;
 import org.apache.camel.main.RoutesCollector;
 import org.apache.camel.quarkus.core.CamelConfig.FailureRemedy;
-import org.apache.camel.quarkus.core.CamelContextCustomizer;
 import org.apache.camel.quarkus.core.CamelProducers;
 import org.apache.camel.quarkus.core.CamelRuntime;
 import org.apache.camel.quarkus.core.RegistryRoutesLoader;
+import org.apache.camel.spi.CamelContextCustomizer;
 
 @Recorder
 public class CamelMainRecorder {
@@ -41,7 +43,6 @@ public class CamelMainRecorder {
             FailureRemedy failureRemedy) {
         CamelMain main = new CamelMain(runtime.getValue(), failureRemedy);
         main.setRoutesCollector(routesCollector.getValue());
-        main.addMainListener(new CamelMainEventBridge());
 
         // properties are loaded through MicroProfile Config so there's
         // no need to look for sources.
@@ -69,8 +70,12 @@ public class CamelMainRecorder {
         main.getValue().addMainListener(listener.getValue());
     }
 
-    public RuntimeValue<RoutesCollector> newRoutesCollector(RuntimeValue<RegistryRoutesLoader> registryRoutesLoader) {
-        return new RuntimeValue<>(new CamelMainRoutesCollector(registryRoutesLoader.getValue()));
+    public RuntimeValue<RoutesCollector> newRoutesCollector(
+            RuntimeValue<RegistryRoutesLoader> registryRoutesLoader,
+            Optional<List<String>> excludePatterns,
+            Optional<List<String>> includePatterns) {
+        return new RuntimeValue<>(
+                new CamelMainRoutesCollector(registryRoutesLoader.getValue(), excludePatterns, includePatterns));
     }
 
     public void customizeContext(RuntimeValue<CamelMain> main, List<RuntimeValue<CamelContextCustomizer>> contextCustomizers) {
@@ -78,7 +83,7 @@ public class CamelMainRecorder {
             @Override
             public void afterConfigure(BaseMainSupport main) {
                 for (RuntimeValue<CamelContextCustomizer> customizer : contextCustomizers) {
-                    customizer.getValue().customize(main.getCamelContext());
+                    customizer.getValue().configure(main.getCamelContext());
                 }
             }
         });
@@ -94,5 +99,9 @@ public class CamelMainRecorder {
         beanContainer.instance(CamelProducers.class).setRuntime(runtime);
 
         return new RuntimeValue<>(runtime);
+    }
+
+    public void registerCamelMainEventBridge(RuntimeValue<CamelMain> main, Set<String> observedMainEvents) {
+        main.getValue().addMainListener(new CamelMainEventBridge(observedMainEvents));
     }
 }

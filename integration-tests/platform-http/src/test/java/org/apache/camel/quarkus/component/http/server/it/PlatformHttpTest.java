@@ -21,13 +21,28 @@ import java.nio.charset.StandardCharsets;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.RestAssured;
+import io.restassured.http.ContentType;
+import io.restassured.http.Method;
+import org.apache.camel.component.platform.http.PlatformHttpComponent;
+import org.apache.camel.component.platform.http.vertx.VertxPlatformHttpEngine;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 @QuarkusTest
 class PlatformHttpTest {
+
+    @BeforeAll
+    public static void beforeAll() {
+        RestAssured.trustStore("truststore.p12", "s3cr3t");
+    }
+
     @Test
     public void basic() {
         RestAssured.given()
@@ -54,11 +69,11 @@ class PlatformHttpTest {
     @Test
     public void rest() throws Throwable {
         RestAssured.get("/my-context/platform-http/rest-get")
-                .then().body(equalTo("GET: /rest-get"));
+                .then().body(equalTo("GET: /my-context/platform-http/rest-get"));
         RestAssured.given()
                 .contentType("text/plain")
                 .post("/my-context/platform-http/rest-post")
-                .then().body(equalTo("POST: /rest-post"));
+                .then().body(equalTo("POST: /my-context/platform-http/rest-post"));
     }
 
     @Test
@@ -241,6 +256,55 @@ class PlatformHttpTest {
     }
 
     @Test
+    public void log() {
+        String message = "Camel Quarkus Platform HTTP";
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body(message)
+                .when()
+                .post("/platform-http/log")
+                .then()
+                .statusCode(200)
+                .body(equalTo(message));
+    }
+
+    @ParameterizedTest
+    @MethodSource("httpMethods")
+    public void methods(Method method) {
+        String expected = "";
+        if (!method.equals(Method.HEAD)) {
+            expected = "Hello " + method.name();
+        }
+
+        RestAssured.given()
+                .request(method, "/platform-http/allmethods")
+                .then()
+                .statusCode(200)
+                .body(equalTo(expected));
+    }
+
+    @Test
+    public void pathPrefix() {
+        // Base part of the path should return 404
+        final String basePath = "/platform-http/path";
+        RestAssured.given()
+                .get(basePath)
+                .then()
+                .statusCode(404);
+
+        // Anything with the expected path prefix should be valid
+        String path = basePath + "/prefix";
+        for (int i = 0; i < 5; i++) {
+            RestAssured.given()
+                    .get(path)
+                    .then()
+                    .statusCode(200)
+                    .body(equalTo("Hello " + path));
+            path += "/" + i;
+        }
+    }
+
+    @Test
     public void testWebhook() throws InterruptedException {
         String path = RestAssured
                 .given()
@@ -250,13 +314,54 @@ class PlatformHttpTest {
                 .body()
                 .asString();
 
-        System.out.println("path = " + path);
-
         RestAssured.given()
                 .urlEncodingEnabled(false)
                 .post("/my-context" + path)
                 .then()
                 .statusCode(200)
                 .body(equalTo("Hello Camel Quarkus Webhook"));
+    }
+
+    @Test
+    public void testPathSecuredWithBasicAuth() {
+        // No credentials
+        RestAssured.given()
+                .when()
+                .get("/platform-http/secure/basic")
+                .then()
+                .statusCode(401);
+
+        // Invalid credentials
+        RestAssured.given()
+                .auth()
+                .basic("camel", "s3cr3t")
+                .get("/platform-http/secure/basic")
+                .then()
+                .statusCode(401);
+
+        // Valid credentials
+        RestAssured.given()
+                .auth()
+                .basic("camel", "p4ssw0rd")
+                .get("/platform-http/secure/basic")
+                .then()
+                .statusCode(200)
+                .header("Authorization", notNullValue())
+                .body(equalTo("camel:Admin"));
+    }
+
+    @Test
+    public void registrySetUp() {
+        RestAssured.given()
+                .get("/registry/inspect")
+                .then()
+                .statusCode(200)
+                .body(
+                        "engine", is(VertxPlatformHttpEngine.class.getName()),
+                        "component", is(PlatformHttpComponent.class.getName()));
+    }
+
+    private static Method[] httpMethods() {
+        return Method.values();
     }
 }

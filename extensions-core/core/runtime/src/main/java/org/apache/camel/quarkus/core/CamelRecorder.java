@@ -16,6 +16,7 @@
  */
 package org.apache.camel.quarkus.core;
 
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -34,6 +35,7 @@ import org.apache.camel.quarkus.core.FastFactoryFinderResolver.Builder;
 import org.apache.camel.reifier.ProcessorReifier;
 import org.apache.camel.reifier.validator.ValidatorReifier;
 import org.apache.camel.spi.BeanProxyFactory;
+import org.apache.camel.spi.ComponentNameResolver;
 import org.apache.camel.spi.FactoryFinderResolver;
 import org.apache.camel.spi.ModelJAXBContextFactory;
 import org.apache.camel.spi.ModelToXMLDumper;
@@ -46,8 +48,20 @@ import org.apache.camel.support.startup.DefaultStartupStepRecorder;
 
 @Recorder
 public class CamelRecorder {
-    public RuntimeValue<Registry> createRegistry() {
-        return new RuntimeValue<>(new RuntimeRegistry());
+    public void registerCamelBeanQualifierResolver(
+            String className,
+            RuntimeValue<CamelBeanQualifierResolver> runtimeValue,
+            Map<String, CamelBeanQualifierResolver> beanQualifiers) {
+
+        if (beanQualifiers.containsKey(className)) {
+            throw new RuntimeException("Duplicate CamelBeanQualifierResolver detected for class: " + className);
+        }
+
+        beanQualifiers.put(className, runtimeValue.getValue());
+    }
+
+    public RuntimeValue<Registry> createRegistry(Map<String, CamelBeanQualifierResolver> beanQualifierResolvers) {
+        return new RuntimeValue<>(new RuntimeRegistry(beanQualifierResolvers));
     }
 
     public RuntimeValue<TypeConverterRegistry> createTypeConverterRegistry() {
@@ -67,7 +81,7 @@ public class CamelRecorder {
         }
     }
 
-    public void loadAnnotatedConverters(RuntimeValue<TypeConverterRegistry> registry, Set<Class> classes) {
+    public void loadAnnotatedConverters(RuntimeValue<TypeConverterRegistry> registry, Set<Class<?>> classes) {
         StaticAnnotationTypeConverterLoader.getInstance().load(registry.getValue(), classes);
     }
 
@@ -95,7 +109,7 @@ public class CamelRecorder {
             Class<?> type) {
 
         try {
-            runtime.getValue().bind(name, type, type.newInstance());
+            runtime.getValue().bind(name, type, type.getDeclaredConstructor().newInstance());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -185,4 +199,7 @@ public class CamelRecorder {
         };
     }
 
+    public RuntimeValue<ComponentNameResolver> createComponentNameResolver(Set<String> componentNames) {
+        return new RuntimeValue<>(new FastComponentNameResolver(componentNames));
+    }
 }

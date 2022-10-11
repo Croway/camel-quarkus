@@ -25,7 +25,6 @@ import java.util.stream.Stream;
 import io.atlasmap.core.DefaultAtlasContextFactory;
 import io.atlasmap.core.DefaultAtlasModuleInfo;
 import io.atlasmap.csv.module.CsvModule;
-import io.atlasmap.dfdl.module.DfdlModule;
 import io.atlasmap.java.module.JavaModule;
 import io.atlasmap.json.module.JsonModule;
 import io.atlasmap.mxbean.AtlasContextFactoryMXBean;
@@ -39,7 +38,6 @@ import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
 import io.quarkus.deployment.builditem.FeatureBuildItem;
-import io.quarkus.deployment.builditem.IndexDependencyBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.NativeImageResourceBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ServiceProviderBuildItem;
@@ -58,34 +56,22 @@ class AtlasmapProcessor {
 
     @BuildStep
     List<ReflectiveClassBuildItem> registerReflectiveClasses() {
-        List<ReflectiveClassBuildItem> items = new ArrayList<ReflectiveClassBuildItem>();
+        List<ReflectiveClassBuildItem> items = new ArrayList<>();
         items.add(new ReflectiveClassBuildItem(false, false, DefaultAtlasContextFactory.class));
         items.add(new ReflectiveClassBuildItem(false, false, DefaultAtlasModuleInfo.class));
         items.add(new ReflectiveClassBuildItem(true, false, JsonModule.class));
         items.add(new ReflectiveClassBuildItem(true, false, CsvModule.class));
-        items.add(new ReflectiveClassBuildItem(true, false, DfdlModule.class));
         items.add(new ReflectiveClassBuildItem(true, false, JavaModule.class));
         items.add(new ReflectiveClassBuildItem(true, false, XmlModule.class));
         items.add(new ReflectiveClassBuildItem(false, true, false, AtlasContextFactoryMXBean.class));
         items.add(new ReflectiveClassBuildItem(false, true, false, AtlasModuleInfoMXBean.class));
-        // that class needs reflection on both methods and fields : see issue https://github.com/atlasmap/atlasmap/issues/2722
-        items.add(new ReflectiveClassBuildItem(false, true, true, DataSourceMetadata.class));
+        items.add(new ReflectiveClassBuildItem(false, true, false, DataSourceMetadata.class));
         return items;
     }
 
     @BuildStep
     NativeImageResourceBuildItem resource() {
         return new NativeImageResourceBuildItem("META-INF/services/atlas/module/atlas.module");
-    }
-
-    @BuildStep
-    void addDependencies(BuildProducer<IndexDependencyBuildItem> indexDependency) {
-        indexDependency.produce(new IndexDependencyBuildItem("io.atlasmap", "atlas-model"));
-        indexDependency.produce(new IndexDependencyBuildItem("io.atlasmap", "atlas-xml-model"));
-        indexDependency.produce(new IndexDependencyBuildItem("io.atlasmap", "atlas-java-model"));
-        indexDependency.produce(new IndexDependencyBuildItem("io.atlasmap", "atlas-json-model"));
-        indexDependency.produce(new IndexDependencyBuildItem("io.atlasmap", "atlas-csv-model"));
-        indexDependency.produce(new IndexDependencyBuildItem("io.atlasmap", "atlas-dfdl-model"));
     }
 
     @BuildStep

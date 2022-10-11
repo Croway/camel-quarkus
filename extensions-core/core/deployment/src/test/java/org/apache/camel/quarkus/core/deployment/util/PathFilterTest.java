@@ -16,13 +16,17 @@
  */
 package org.apache.camel.quarkus.core.deployment.util;
 
+import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
+import org.apache.camel.util.FileUtil;
 import org.jboss.jandex.DotName;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -67,7 +71,24 @@ public class PathFilterTest {
 
     @Test
     public void pathFilter() {
-        Predicate<Path> predicate = new PathFilter.Builder()
+        PathFilter.Builder builder = new PathFilter.Builder();
+        Stream.of("/foo/bar/*", "moo/mar/*")
+                .forEach(path -> {
+                    if (FileUtil.isWindows()) {
+                        path = path.replace("/", File.pathSeparator);
+                    }
+                    builder.include(path);
+                });
+
+        Stream.of("/foo/baz/*", "moo/maz/*")
+                .forEach(path -> {
+                    if (FileUtil.isWindows()) {
+                        path = path.replace("/", File.pathSeparator);
+                    }
+                    builder.exclude(path);
+                });
+
+        Predicate<Path> predicate = builder
                 .include("/foo/bar/*")
                 .include("moo/mar/*")
                 .exclude("/foo/baz/*")
@@ -118,14 +139,29 @@ public class PathFilterTest {
                 .map(rootPath::resolve);
 
         final Predicate<Path> isRegularFile = path -> path.getFileName().toString().contains(".");
-        final String[] classNames = filter.scanClassNames(rootPath, pathStream, isRegularFile);
+        final Set<String> classNames = new TreeSet<>();
+        filter.scanClassNames(rootPath, pathStream, isRegularFile, classNames::add);
 
-        Assertions.assertArrayEquals(new String[] {
+        Assertions.assertEquals(new TreeSet<>(Arrays.asList(
                 "org.p1.Class1",
                 "org.p1.Class1$Inner",
-                "org.p2.whatever.Class2"
-        }, classNames);
+                "org.p2.whatever.Class2")),
+                classNames);
 
+    }
+
+    @Test
+    void addNonPatternPaths() {
+        final PathFilter pathFilter = new PathFilter.Builder()
+                .include("org/p1/*")
+                .include("org/p2/**")
+                .include("org/p3/NonPatternClass")
+                .exclude("org/p1/ExcludedClass")
+                .exclude("org/p2/excludedpackage/**")
+                .build();
+        Set<String> selectedPaths = new TreeSet<>();
+        pathFilter.addNonPatternPaths(selectedPaths);
+        Assertions.assertEquals(new TreeSet<>(Arrays.asList("org.p3.NonPatternClass")), selectedPaths);
     }
 
 }

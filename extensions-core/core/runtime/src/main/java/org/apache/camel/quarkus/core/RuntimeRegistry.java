@@ -16,12 +16,14 @@
  */
 package org.apache.camel.quarkus.core;
 
+import java.util.Map;
+
 import io.quarkus.runtime.RuntimeValue;
 import org.apache.camel.support.DefaultRegistry;
 
 public class RuntimeRegistry extends DefaultRegistry {
-    public RuntimeRegistry() {
-        super(new RuntimeBeanRepository());
+    public RuntimeRegistry(Map<String, CamelBeanQualifierResolver> beanQualifierResolvers) {
+        super(new RuntimeBeanRepository(beanQualifierResolvers));
     }
 
     @Override

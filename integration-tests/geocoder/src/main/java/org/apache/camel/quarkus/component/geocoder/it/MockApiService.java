@@ -17,16 +17,20 @@
 package org.apache.camel.quarkus.component.geocoder.it;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 
 import javax.enterprise.context.ApplicationScoped;
 
 import com.google.maps.GeoApiContext;
+import io.quarkus.runtime.annotations.RegisterForReflection;
 
 @ApplicationScoped
+@RegisterForReflection(targets = GeoApiContext.Builder.class)
 public class MockApiService {
 
     public GeoApiContext createGeoApiContext(String baseUri, String apiKey)
-            throws IllegalAccessException, InstantiationException, NoSuchFieldException {
+            throws IllegalAccessException, InstantiationException, NoSuchFieldException, IllegalArgumentException,
+            InvocationTargetException, NoSuchMethodException, SecurityException {
         GeoApiContext.Builder builder = createGeoApiContext(baseUri);
         builder.apiKey(apiKey);
         return builder.build();
@@ -40,11 +44,16 @@ public class MockApiService {
      * @throws IllegalAccessException
      * @throws InstantiationException
      * @throws NoSuchFieldException
+     * @throws SecurityException
+     * @throws NoSuchMethodException
+     * @throws InvocationTargetException
+     * @throws IllegalArgumentException
      */
     public GeoApiContext.Builder createGeoApiContext(String baseUrl)
-            throws IllegalAccessException, InstantiationException, NoSuchFieldException {
+            throws IllegalAccessException, InstantiationException, NoSuchFieldException, IllegalArgumentException,
+            InvocationTargetException, NoSuchMethodException, SecurityException {
         Class<?> clazz = GeoApiContext.Builder.class;
-        Object builder = clazz.newInstance();
+        Object builder = clazz.getDeclaredConstructor().newInstance();
 
         Field f1 = builder.getClass().getDeclaredField("baseUrlOverride");
         f1.setAccessible(true);

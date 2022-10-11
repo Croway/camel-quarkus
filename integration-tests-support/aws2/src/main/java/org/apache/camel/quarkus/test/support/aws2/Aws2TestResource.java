@@ -26,14 +26,16 @@ import java.util.stream.Stream;
 
 import io.quarkus.test.common.QuarkusTestResourceLifecycleManager;
 import org.apache.camel.quarkus.test.mock.backend.MockBackendUtils;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.localstack.LocalStackContainer;
 import org.testcontainers.containers.localstack.LocalStackContainer.Service;
+import org.testcontainers.containers.output.Slf4jLogConsumer;
 import org.testcontainers.utility.DockerImageName;
 import software.amazon.awssdk.core.SdkClient;
 
 public final class Aws2TestResource implements QuarkusTestResourceLifecycleManager {
-    private static final Logger LOG = Logger.getLogger(Aws2TestResource.class);
+    private static final Logger LOG = LoggerFactory.getLogger(Aws2TestResource.class);
 
     private Aws2TestEnvContext envContext;
 
@@ -69,8 +71,10 @@ public final class Aws2TestResource implements QuarkusTestResourceLifecycleManag
                     .distinct()
                     .toArray(Service[]::new);
 
-            LocalStackContainer localstack = new LocalStackContainer(DockerImageName.parse("localstack/localstack:0.12.11"))
+            LocalStackContainer localstack = new LocalStackContainer(DockerImageName.parse("localstack/localstack:0.12.17.5"))
                     .withServices(services);
+            localstack.withEnv("LAMBDA_EXECUTOR", "local");
+            localstack.withLogConsumer(new Slf4jLogConsumer(LOG));
             localstack.start();
 
             envContext = new Aws2TestEnvContext(localstack.getAccessKey(), localstack.getSecretKey(), localstack.getRegion(),
@@ -107,6 +111,15 @@ public final class Aws2TestResource implements QuarkusTestResourceLifecycleManag
                     SdkClient client = envContext.client(service, f.getType());
                     try {
                         f.set(testInstance, client);
+                    } catch (IllegalArgumentException | IllegalAccessException e) {
+                        throw new RuntimeException("Could not set " + c.getName() + "." + f.getName(), e);
+                    }
+                }
+                Aws2LocalStack localStackAnnot = f.getAnnotation(Aws2LocalStack.class);
+                if (localStackAnnot != null) {
+                    f.setAccessible(true);
+                    try {
+                        f.set(testInstance, envContext.isLocalStack());
                     } catch (IllegalArgumentException | IllegalAccessException e) {
                         throw new RuntimeException("Could not set " + c.getName() + "." + f.getName(), e);
                     }

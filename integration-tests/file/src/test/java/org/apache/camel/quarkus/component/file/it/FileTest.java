@@ -22,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -33,8 +34,10 @@ import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
 import io.restassured.path.json.JsonPath;
 import io.restassured.response.ValidatableResponse;
-import org.hamcrest.Matcher;
+import org.apache.camel.quarkus.core.util.FileUtils;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import static org.apache.camel.quarkus.component.file.it.FileResource.CONSUME_BATCH;
@@ -50,7 +53,6 @@ class FileTest {
     private static final String FILE_CONTENT_01 = "Hello1";
     private static final String FILE_CONTENT_02 = "Hello2";
     private static final String FILE_CONTENT_03 = "Hello3";
-    private static final String FILE_BODY_UTF8 = "Hello World \u4f60\u597d";
 
     private List<Path> pathsToDelete = new LinkedList<>();
 
@@ -60,7 +62,7 @@ class FileTest {
             try {
                 Files.delete(p);
             } catch (IOException e) {
-                //ignore
+                // ignore
             }
         });
 
@@ -81,17 +83,11 @@ class FileTest {
     }
 
     @Test
-    public void charset() throws UnsupportedEncodingException {
-        // Create a new file
-        createFile(FILE_BODY_UTF8, "/file/create/charsetUTF8", "UTF-8", null);
-        createFile(FILE_BODY_UTF8, "/file/create/charsetISO", "UTF-8", null);
-
-        await().atMost(10, TimeUnit.SECONDS).until(() -> getFromMock("charsetUTF8", equalTo(FILE_BODY_UTF8)));
-
-        await().atMost(10, TimeUnit.SECONDS).until(() -> {
-            // File content read as ISO-8859-1 has to have different content (because file contains some unknown characters)
-            return getFromMock("charsetISO", equalTo(new String(FILE_BODY_UTF8.getBytes(), "ISO-8859-1")));
-        });
+    public void writeThenReadFileWithCharsetShouldSucceed() {
+        RestAssured
+                .get("/file/writeThenReadFileWithCharsetShouldSucceed")
+                .then()
+                .statusCode(204);
     }
 
     @Test
@@ -100,7 +96,7 @@ class FileTest {
         createFile(FILE_CONTENT_01, "/file/create/" + CONSUME_BATCH);
         createFile(FILE_CONTENT_02, "/file/create/" + CONSUME_BATCH);
 
-        //start route
+        // start route
         startRouteAndWait(CONSUME_BATCH);
 
         await().atMost(10, TimeUnit.SECONDS).until(() -> {
@@ -121,22 +117,39 @@ class FileTest {
         // Create a new file
         String fileName01 = createFile(FILE_CONTENT_01, "/file/create/idempotent");
 
-        await().atMost(10, TimeUnit.SECONDS).until(() -> getFromMock("idempotent", equalTo(FILE_CONTENT_01)));
+        await().atMost(10, TimeUnit.SECONDS).until(
+                () -> RestAssured
+                        .get("/file/getFromMock/idempotent")
+                        .then()
+                        .extract().asString(),
+                equalTo(FILE_CONTENT_01));
+
+        // clear the mock to assert that FILE_CONTENT_01 will not be received again even if presented a second time to the route
+        RestAssured
+                .get("/file/resetMock/idempotent")
+                .then()
+                .statusCode(204);
 
         // move file back
         Path donePath = Paths.get(fileName01.replaceFirst("target/idempotent", "target/idempotent/done"));
         Path targetPath = Paths.get(fileName01);
-        Files.move(donePath, targetPath);
-        //register file for deletion after tests
+        Files.move(donePath, targetPath, StandardCopyOption.ATOMIC_MOVE);
+        // register file for deletion after tests
         pathsToDelete.add(targetPath);
 
-        //create another file, to receive only this one in the next check
+        // create another file, to receive only this one in the next check
         createFile(FILE_CONTENT_02, "/file/create/idempotent");
 
-        //there should be no file in mock
-        await().atMost(10, TimeUnit.SECONDS).until(() -> getFromMock("idempotent", equalTo(FILE_CONTENT_02)));
+        // there should be no file in mock
+        await().atMost(10, TimeUnit.SECONDS).until(
+                () -> RestAssured
+                        .get("/file/getFromMock/idempotent")
+                        .then()
+                        .extract().asString(),
+                equalTo(FILE_CONTENT_02));
     }
 
+    @Disabled("Disabling as an experiment in the context of CAMEL-QUARKUS-3584. Let's check whether filter and idempotent are sort of polluting each other.")
     @Test
     public void filter() throws IOException {
         String fileName = createFile(FILE_CONTENT_01, "/file/create/filter", null, "skip_" + UUID.randomUUID().toString());
@@ -144,7 +157,12 @@ class FileTest {
 
         pathsToDelete.add(Paths.get(fileName));
 
-        await().atMost(10, TimeUnit.SECONDS).until(() -> getFromMock("filter", equalTo(FILE_CONTENT_02)));
+        await().atMost(10, TimeUnit.SECONDS).until(
+                () -> RestAssured
+                        .get("/file/getFromMock/filter")
+                        .then()
+                        .extract().asString(),
+                equalTo(FILE_CONTENT_02));
     }
 
     @Test
@@ -155,9 +173,12 @@ class FileTest {
 
         startRouteAndWait(SORT_BY);
 
-        await().atMost(10, TimeUnit.SECONDS).until(() -> {
-            return getFromMock(SORT_BY, equalTo(FILE_CONTENT_03 + SEPARATOR + FILE_CONTENT_02 + SEPARATOR + FILE_CONTENT_01));
-        });
+        await().atMost(10, TimeUnit.SECONDS).until(
+                () -> RestAssured
+                        .get("/file/getFromMock/" + SORT_BY)
+                        .then()
+                        .extract().asString(),
+                equalTo(FILE_CONTENT_03 + SEPARATOR + FILE_CONTENT_02 + SEPARATOR + FILE_CONTENT_01));
     }
 
     @Test
@@ -186,7 +207,7 @@ class FileTest {
     @Test
     public void fileReadLock_minLength() throws Exception {
         // Create a new file
-        String fileName = RestAssured.given()
+        String filePath = RestAssured.given()
                 .contentType(ContentType.BINARY)
                 .body(new byte[] {})
                 .post("/file/create/{name}", FileRoutes.READ_LOCK_IN)
@@ -196,13 +217,27 @@ class FileTest {
                 .body()
                 .asString();
 
+        String fileName = Paths.get(filePath).getFileName().toString();
+
         Thread.sleep(10_000L);
 
-        // Read the file that should not be there
+        // Read the file that should not be there (.done folder)
         RestAssured
-                .get("/file/get/{folder}/{name}", FileRoutes.READ_LOCK_OUT, Paths.get(fileName).getFileName())
+                .get("/file/get/{folder}/{name}", FileRoutes.READ_LOCK_IN + "/.done", fileName)
                 .then()
                 .statusCode(204);
+
+        // Read the file that should not be there (output folder)
+        RestAssured
+                .get("/file/get/{folder}/{name}", FileRoutes.READ_LOCK_OUT, fileName)
+                .then()
+                .statusCode(204);
+
+        // Read the file that should be there (input folder)
+        RestAssured
+                .get("/file/get/{folder}/{name}", FileRoutes.READ_LOCK_IN, fileName)
+                .then()
+                .statusCode(200);
     }
 
     @Test
@@ -222,16 +257,19 @@ class FileTest {
     }
 
     private static String createFile(String content, String path) throws UnsupportedEncodingException {
-        return createFile(content.getBytes("UTF-8"), path, null, null);
+        return createFile(content, path, "UTF-8", null);
     }
 
     static String createFile(String content, String path, String charset, String prefix)
             throws UnsupportedEncodingException {
-        return createFile(content.getBytes(), path, charset, prefix);
+        if (charset == null) {
+            charset = "UTF-8";
+        }
+        return createFile(content.getBytes(charset), path, charset, prefix);
     }
 
     static String createFile(byte[] content, String path, String charset, String fileName) {
-        return RestAssured.given()
+        String createdFilePath = RestAssured.given()
                 .urlEncodingEnabled(true)
                 .queryParam("charset", charset)
                 .contentType(ContentType.BINARY)
@@ -243,18 +281,8 @@ class FileTest {
                 .extract()
                 .body()
                 .asString();
-    }
 
-    private static boolean getFromMock(String mockId, Matcher matcher) {
-        String records = RestAssured
-                .get("/file/getFromMock/" + mockId)
-                .then()
-                .statusCode(200)
-                .body(matcher)
-                .extract().asString();
-
-        //return true if content is not empty
-        return records != null && !records.isEmpty();
+        return FileUtils.nixifyPath(createdFilePath);
     }
 
     static void startRouteAndWait(String routeId) throws InterruptedException {
@@ -265,7 +293,7 @@ class FileTest {
                 .then()
                 .statusCode(204);
 
-        //wait for start
+        // wait for start
         Thread.sleep(500);
 
     }
@@ -290,10 +318,28 @@ class FileTest {
                         final JsonPath json = response
                                 .extract()
                                 .jsonPath();
-                        return file.toString().equals(json.getString("path")) && type.equals(json.getString("type"));
+                        String expectedPath = FileUtils.nixifyPath(file);
+                        String actualPath = json.getString("path");
+                        return expectedPath.equals(actualPath) && type.equals(json.getString("type"));
                     default:
                         throw new RuntimeException("Unexpected status code " + response.extract().statusCode());
                     }
                 });
     }
+
+    @Test
+    public void pollEnrich() throws IOException {
+        final Path file = Paths.get("target/pollEnrich/pollEnrich.txt");
+        Files.createDirectories(file.getParent());
+        final String body = "Hi from pollEnrich.txt";
+        Files.write(file, body.getBytes(StandardCharsets.UTF_8));
+
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .post("/file/route/pollEnrich")
+                .then()
+                .statusCode(200)
+                .body(Matchers.is(body));
+    }
+
 }

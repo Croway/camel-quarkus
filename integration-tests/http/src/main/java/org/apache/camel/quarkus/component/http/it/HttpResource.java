@@ -16,9 +16,13 @@
  */
 package org.apache.camel.quarkus.component.http.it;
 
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.zip.GZIPInputStream;
 
+import javax.annotation.security.RolesAllowed;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import javax.json.Json;
@@ -30,6 +34,7 @@ import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 
 import org.apache.camel.ConsumerTemplate;
 import org.apache.camel.Exchange;
@@ -38,84 +43,24 @@ import org.apache.camel.RoutesBuilder;
 import org.apache.camel.builder.EndpointConsumerBuilder;
 import org.apache.camel.builder.EndpointProducerBuilder;
 import org.apache.camel.builder.endpoint.EndpointRouteBuilder;
+import org.apache.camel.util.IOHelper;
+import org.eclipse.microprofile.config.ConfigProvider;
 
 @Path("/test/client")
 @ApplicationScoped
 public class HttpResource {
+
+    public static final String PROXIED_URL = "https://repo.maven.apache.org/maven2/org/apache/camel/quarkus/camel-quarkus-%s/maven-metadata.xml";
+    public static final String USER_ADMIN = "admin";
+    public static final String USER_ADMIN_PASSWORD = "adm1n";
+    public static final String USER_NO_ADMIN = "noadmin";
+    public static final String USER_NO_ADMIN_PASSWORD = "n0Adm1n";
+
     @Inject
     FluentProducerTemplate producerTemplate;
 
     @Inject
     ConsumerTemplate consumerTemplate;
-
-    // *****************************
-    //
-    // camel-ahc
-    //
-    // *****************************
-
-    @Path("/ahc/get")
-    @GET
-    @Produces(MediaType.TEXT_PLAIN)
-    public String get(@QueryParam("test-port") int port) {
-        return producerTemplate
-                .toF("ahc:http://localhost:%d/service/get?bridgeEndpoint=true", port)
-                .withHeader(Exchange.HTTP_METHOD, "GET")
-                .request(String.class);
-    }
-
-    @Path("/ahc/get-https")
-    @GET
-    @Produces(MediaType.TEXT_PLAIN)
-    public String getHttps(@QueryParam("test-port") int port) {
-        return producerTemplate
-                .toF("ahc:https://localhost:%d/countries/cz?bridgeEndpoint=true&sslContextParameters=#sslContextParameters",
-                        port)
-                .withHeader(Exchange.HTTP_METHOD, "GET")
-                .request(String.class);
-    }
-
-    @Path("/ahc/post")
-    @POST
-    @Consumes(MediaType.TEXT_PLAIN)
-    @Produces(MediaType.TEXT_PLAIN)
-    public String post(@QueryParam("test-port") int port, String message) {
-        return producerTemplate
-                .toF("ahc://http://localhost:%d/service/toUpper?bridgeEndpoint=true", port)
-                .withBody(message)
-                .withHeader(Exchange.CONTENT_TYPE, MediaType.TEXT_PLAIN)
-                .withHeader(Exchange.HTTP_METHOD, "POST")
-                .request(String.class);
-    }
-
-    // *****************************
-    //
-    // camel-ahc-ws
-    //
-    // *****************************
-    @Path("/ahc-ws/post")
-    @POST
-    @Produces(MediaType.TEXT_PLAIN)
-    public String triggerAhcWsProducerConsumer(@QueryParam("test-port") int port, String message) throws Exception {
-        String uri = String.format("ahc-ws:localhost:%d/ahc-ws/greeting", port);
-
-        // Start consumer
-        CompletableFuture<String> future = CompletableFuture
-                .supplyAsync(() -> consumerTemplate.receiveBody(uri, 10000, String.class));
-
-        // Wait for consumer connect
-        int attempts = 0;
-        while (!GreetingServerEndpoint.connected && attempts < 25) {
-            Thread.sleep(250);
-            attempts++;
-        }
-
-        // Send WS payload
-        producerTemplate.to(uri).withBody(message).send();
-
-        // Get result from the consumer
-        return future.get(5, TimeUnit.SECONDS);
-    }
 
     // *****************************
     //
@@ -128,7 +73,7 @@ public class HttpResource {
     @Produces(MediaType.TEXT_PLAIN)
     public String httpGet(@QueryParam("test-port") int port) {
         return producerTemplate
-                .toF("http://localhost:%d/service/get?bridgeEndpoint=true", port)
+                .toF("http://localhost:%d/service/get?bridgeEndpoint=true&connectTimeout=2000", port)
                 .withHeader(Exchange.HTTP_METHOD, "GET")
                 .request(String.class);
     }
@@ -154,6 +99,91 @@ public class HttpResource {
                 .withHeader(Exchange.CONTENT_TYPE, MediaType.TEXT_PLAIN)
                 .withHeader(Exchange.HTTP_METHOD, "POST")
                 .request(String.class);
+    }
+
+    @Path("/http/auth/basic")
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response httpBasicAuth(
+            @QueryParam("test-port") int port,
+            @QueryParam("username") String username,
+            @QueryParam("password") String password) {
+
+        Exchange result = producerTemplate
+                .withHeader(Exchange.HTTP_QUERY, "component=http")
+                .toF("http://localhost:%d/test/client/auth/basic?throwExceptionOnFailure=false"
+                        + "&authMethod=BASIC"
+                        + "&authUsername=%s"
+                        + "&authPassword=%s", port, username, password)
+                .send();
+
+        Integer status = result.getMessage().getHeader(Exchange.HTTP_RESPONSE_CODE, Integer.class);
+        String body = result.getMessage().getBody(String.class);
+        return Response.status(status).entity(body).build();
+    }
+
+    @Path("/http/auth/basic/cache")
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response httpBasicAuthCache(@QueryParam("test-port") int port) {
+
+        Exchange result = producerTemplate
+                .withHeader(Exchange.HTTP_QUERY, "component=http")
+                .toF("http://localhost:%d/test/client/auth/basic"
+                        + "?throwExceptionOnFailure=false"
+                        + "&httpContext=#basicAuthContext", port)
+                .send();
+
+        Integer status = result.getMessage().getHeader(Exchange.HTTP_RESPONSE_CODE, Integer.class);
+        String body = result.getMessage().getBody(String.class);
+        return Response.status(status).entity(body).build();
+    }
+
+    @Path("/http/proxy")
+    @GET
+    @Produces(MediaType.APPLICATION_XML)
+    public String httpProxy() {
+        Integer proxyPort = ConfigProvider.getConfig().getValue("tiny.proxy.port", Integer.class);
+        return producerTemplate
+                .toF("%s?"
+                        + "proxyAuthMethod=Basic"
+                        + "&proxyAuthScheme=http"
+                        + "&proxyAuthHost=localhost"
+                        + "&proxyAuthPort=%d"
+                        + "&proxyAuthUsername=%s"
+                        + "&proxyAuthPassword=%s", String.format(PROXIED_URL, "http"), proxyPort, USER_ADMIN,
+                        USER_ADMIN_PASSWORD)
+                .request(String.class);
+    }
+
+    @Path("/http/compression")
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public String httpCompression(@QueryParam("test-port") int port) {
+        return producerTemplate
+                .toF("http://localhost:%d/compressed?bridgeEndpoint=true", port)
+                .withHeader(Exchange.HTTP_METHOD, "GET")
+                .withHeader("Accept-Encoding", "gzip, deflate")
+                .request(String.class);
+    }
+
+    @Path("/http/operation/failed/exception")
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public String httpOperationFailedException() {
+        producerTemplate.to("direct:httpOperationFailedException").send();
+        return consumerTemplate.receiveBody("seda:dlq", 5000, String.class);
+    }
+
+    @Path("/http/serialized/exception")
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public String httpSerializedException(@QueryParam("test-port") int port) {
+        Exchange exchange = producerTemplate
+                .toF("http://localhost:%d/test/server/serialized/exception?bridgeEndpoint=true&transferException=true", port)
+                .withHeader(Exchange.HTTP_METHOD, "GET")
+                .send();
+        return exchange.getException().getClass().getName();
     }
 
     // *****************************
@@ -186,13 +216,70 @@ public class HttpResource {
     @POST
     @Consumes(MediaType.TEXT_PLAIN)
     @Produces(MediaType.TEXT_PLAIN)
-    public String hettyHttpPost(@QueryParam("test-port") int port, String message) {
+    public String nettyHttpPost(@QueryParam("test-port") int port, String message) {
         return producerTemplate
                 .toF("netty-http:http://localhost:%d/service/toUpper?bridgeEndpoint=true", port)
                 .withBody(message)
                 .withHeader(Exchange.CONTENT_TYPE, MediaType.TEXT_PLAIN)
                 .withHeader(Exchange.HTTP_METHOD, "POST")
                 .request(String.class);
+    }
+
+    @Path("/netty-http/auth/basic")
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response nettyHttpBasicAuth(
+            @QueryParam("test-port") int port,
+            @QueryParam("username") String username,
+            @QueryParam("password") String password) {
+
+        String credentials = username + ":" + password;
+        String encoded = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
+        Exchange result = producerTemplate
+                .withHeader(Exchange.HTTP_QUERY, "component=netty-http")
+                .withHeader("Authorization", "Basic " + encoded)
+                .toF("netty-http:http://localhost:%d/test/client/auth/basic?throwExceptionOnFailure=false", port)
+                .send();
+
+        Integer status = result.getMessage().getHeader(Exchange.HTTP_RESPONSE_CODE, Integer.class);
+        String body = result.getMessage().getBody(String.class);
+        return Response.status(status).entity(body).build();
+    }
+
+    @Path("/netty-http/proxy")
+    @GET
+    @Produces(MediaType.APPLICATION_XML)
+    public String nettyHttpProxy() {
+        String url = String.format(PROXIED_URL, "netty-http");
+        return producerTemplate
+                .withHeader(Exchange.HTTP_QUERY, "component=netty-http")
+                .toF("netty-http:%s?clientInitializerFactory=#proxyCapableClientInitializerFactory", url)
+                .request(String.class);
+    }
+
+    @Path("/netty-http/compression")
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public String nettyHttpCompression(@QueryParam("test-port") int port) throws IOException {
+        byte[] compressed = producerTemplate
+                .toF("netty-http:http://localhost:%d/compressed", port)
+                .withHeader("Accept-Encoding", "gzip, deflate")
+                .request(byte[].class);
+
+        try (GZIPInputStream inputStream = new GZIPInputStream(new ByteArrayInputStream(compressed))) {
+            return IOHelper.loadText(inputStream).trim();
+        }
+    }
+
+    @Path("/netty-http/serialized/exception")
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public String nettyHttpSerializedException(@QueryParam("test-port") int port) {
+        Exchange exchange = producerTemplate
+                .toF("netty-http:http://localhost:%d/test/server/serialized/exception?transferException=true", port)
+                .withHeader(Exchange.HTTP_METHOD, "GET")
+                .send();
+        return exchange.getException().getClass().getName();
     }
 
     // *****************************
@@ -234,6 +321,64 @@ public class HttpResource {
                 .request(String.class);
     }
 
+    @Path("/vertx-http/auth/basic")
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response vertxHttpBasicAuth(
+            @QueryParam("test-port") int port,
+            @QueryParam("username") String username,
+            @QueryParam("password") String password) {
+
+        Exchange result = producerTemplate
+                .withHeader(Exchange.HTTP_QUERY, "component=vertx-http")
+                .toF("vertx-http:http://localhost:%d/test/client/auth/basic?throwExceptionOnFailure=false"
+                        + "&basicAuthUsername=%s"
+                        + "&basicAuthPassword=%s", port, username, password)
+                .send();
+
+        Integer status = result.getMessage().getHeader(Exchange.HTTP_RESPONSE_CODE, Integer.class);
+        String body = result.getMessage().getBody(String.class);
+        return Response.status(status).entity(body).build();
+    }
+
+    @Path("/vertx-http/proxy")
+    @GET
+    @Produces(MediaType.APPLICATION_XML)
+    public String vertxHttpProxy() {
+        Integer proxyPort = ConfigProvider.getConfig().getValue("tiny.proxy.port", Integer.class);
+        return producerTemplate
+                .toF("vertx-http:%s?"
+                        + "proxyHost=localhost"
+                        + "&proxyPort=%d"
+                        + "&proxyType=HTTP"
+                        + "&proxyUsername=%s"
+                        + "&proxyPassword=%s", String.format(PROXIED_URL, "vertx-http"), proxyPort, USER_ADMIN,
+                        USER_ADMIN_PASSWORD)
+                .request(String.class);
+    }
+
+    @Path("/vertx-http/compression")
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public String vertxHttpCompression(@QueryParam("test-port") int port) {
+        return producerTemplate
+                .toF("vertx-http:http://localhost:%d/compressed?useCompression=true", port)
+                .withHeader(Exchange.HTTP_METHOD, "GET")
+                .withHeader("Accept-Encoding", "gzip, deflate")
+                .request(String.class);
+    }
+
+    @Path("/vertx-http/serialized/exception")
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public String vertxHttpSerializedException(@QueryParam("test-port") int port) {
+        Exchange exchange = producerTemplate
+                .toF("vertx-http:http://localhost:%d/test/server/serialized/exception?transferException=true", port)
+                .withHeader(Exchange.HTTP_METHOD, "GET")
+                .send();
+        return exchange.getException().getClass().getName();
+    }
+
     // *****************************
     //
     // Send dynamic tests
@@ -260,6 +405,14 @@ public class HttpResource {
                 .build();
     }
 
+    @Path("/auth/basic")
+    @GET
+    @RolesAllowed("admin")
+    @Produces(MediaType.TEXT_HTML)
+    public String basicAuth(@QueryParam("component") String component) {
+        return "Component " + component + " is using basic auth";
+    }
+
     @ApplicationScoped
     RoutesBuilder sendDynamicRoutes() {
         return new EndpointRouteBuilder() {
@@ -268,7 +421,7 @@ public class HttpResource {
                 final EndpointConsumerBuilder trigger = direct(
                         "send-dynamic");
                 final EndpointProducerBuilder service = http(
-                        "localhost:${header.SendDynamicHttpEndpointPort}/test/send-dynamic/service?q=*&fq=publication_date:%5B${date:now-72h:yyyy-MM-dd}T00:00:00Z%20TO%20${date:now-24h:yyyy-MM-dd}T23:59:59Z%5D&wt=xml&indent=false&start=0&rows=100");
+                        "localhost:${header.SendDynamicHttpEndpointPort}/test/client/send-dynamic/service?q=*&fq=publication_date:%5B${date:now-72h:yyyy-MM-dd}T00:00:00Z%20TO%20${date:now-24h:yyyy-MM-dd}T23:59:59Z%5D&wt=xml&indent=false&start=0&rows=100");
 
                 from(trigger)
                         .setHeader(Exchange.HTTP_METHOD).constant("GET")

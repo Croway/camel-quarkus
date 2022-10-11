@@ -17,10 +17,10 @@
 package org.apache.camel.quarkus.component.xchange.deployment;
 
 import java.lang.reflect.Modifier;
-import java.util.List;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
-import io.quarkus.bootstrap.model.AppArtifact;
-import io.quarkus.bootstrap.model.AppDependency;
+import io.quarkus.bootstrap.model.ApplicationModel;
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
@@ -29,14 +29,18 @@ import io.quarkus.deployment.builditem.FeatureBuildItem;
 import io.quarkus.deployment.builditem.IndexDependencyBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.NativeImageProxyDefinitionBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.NativeImageResourceBuildItem;
+import io.quarkus.deployment.builditem.nativeimage.NativeImageResourceBundleBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
+import io.quarkus.deployment.builditem.nativeimage.RuntimeInitializedClassBuildItem;
 import io.quarkus.deployment.pkg.builditem.CurateOutcomeBuildItem;
+import io.quarkus.maven.dependency.ResolvedDependency;
 import org.jboss.jandex.AnnotationInstance;
 import org.jboss.jandex.AnnotationTarget;
 import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
 import org.jboss.jandex.IndexView;
 import org.knowm.xchange.BaseExchange;
+import org.knowm.xchange.dto.Order;
 
 class XchangeProcessor {
 
@@ -58,14 +62,12 @@ class XchangeProcessor {
             BuildProducer<NativeImageResourceBuildItem> nativeImageResource,
             CurateOutcomeBuildItem curateOutcome) {
 
-        List<AppDependency> userDependencies = curateOutcome.getEffectiveModel().getUserDependencies();
-        for (AppDependency dependency : userDependencies) {
-            AppArtifact artifact = dependency.getArtifact();
-
-            if (artifact.getGroupId().equals("org.knowm.xchange")) {
+        ApplicationModel applicationModel = curateOutcome.getApplicationModel();
+        for (ResolvedDependency dependency : applicationModel.getDependencies()) {
+            if (dependency.getGroupId().equals("org.knowm.xchange")) {
                 // Index any org.knowm.xchange dependencies present on the classpath as they contain the APIs for interacting with each crypto exchange
-                String artifactId = artifact.getArtifactId();
-                indexedDependency.produce(new IndexDependencyBuildItem(artifact.getGroupId(), artifactId));
+                String artifactId = dependency.getArtifactId();
+                indexedDependency.produce(new IndexDependencyBuildItem(dependency.getGroupId(), artifactId));
 
                 // Include crypto exchange metadata resources
                 String[] split = artifactId.split("-");
@@ -90,12 +92,13 @@ class XchangeProcessor {
         reflectiveClass.produce(new ReflectiveClassBuildItem(false, false, xchangeClasses));
 
         // DTO classes need to be serialized / deserialized
+        final Pattern pattern = Pattern.compile("^org\\.knowm\\.xchange.*dto.*");
         String[] dtoClasses = index.getKnownClasses()
                 .stream()
                 .map(classInfo -> classInfo.name().toString())
-                .filter(className -> className.startsWith("org.knowm.xchange.dto"))
+                .filter(className -> pattern.matcher(className).matches())
                 .toArray(String[]::new);
-        reflectiveClass.produce(new ReflectiveClassBuildItem(false, true, dtoClasses));
+        reflectiveClass.produce(new ReflectiveClassBuildItem(true, true, dtoClasses));
 
         // rescu REST framework needs reflective access to the value method on some JAX-RS annotations
         String[] jaxrsAnnotations = index.getKnownClasses()
@@ -106,7 +109,6 @@ class XchangeProcessor {
                 .filter(className -> className.startsWith("javax.ws.rs"))
                 .toArray(String[]::new);
         reflectiveClass.produce(new ReflectiveClassBuildItem(true, false, jaxrsAnnotations));
-
     }
 
     @BuildStep
@@ -125,4 +127,17 @@ class XchangeProcessor {
                 .map(NativeImageProxyDefinitionBuildItem::new)
                 .forEach(nativeImageProxy::produce);
     }
+
+    @BuildStep
+    void runtimeInitializedClasses(BuildProducer<RuntimeInitializedClassBuildItem> runtimeInitializedClasses) {
+        Stream.of(Order.class.getName())
+                .map(RuntimeInitializedClassBuildItem::new)
+                .forEach(runtimeInitializedClasses::produce);
+    }
+
+    @BuildStep
+    void registerResourceBundles(BuildProducer<NativeImageResourceBundleBuildItem> producer) {
+        producer.produce(new NativeImageResourceBundleBuildItem("sun.util.resources.CurrencyNames"));
+    }
+
 }

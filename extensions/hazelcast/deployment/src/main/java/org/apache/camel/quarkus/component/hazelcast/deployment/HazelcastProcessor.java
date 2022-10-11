@@ -62,6 +62,13 @@ class HazelcastProcessor {
     }
 
     @BuildStep
+    void configureRuntimeInitializedClasses(BuildProducer<RuntimeInitializedClassBuildItem> runtimeInitializedClass) {
+        for (String className : RUNTIME_INITIALIZED_CLASSES) {
+            runtimeInitializedClass.produce(new RuntimeInitializedClassBuildItem(className));
+        }
+    }
+
+    @BuildStep
     ExtensionSslNativeSupportBuildItem activateSslNativeSupport() {
         return new ExtensionSslNativeSupportBuildItem(FEATURE);
     }
@@ -112,13 +119,6 @@ class HazelcastProcessor {
 
             ignoreWarnings.produce(
                     new ReflectiveHierarchyIgnoreWarningBuildItem(simpleName));
-        }
-    }
-
-    @BuildStep
-    void configureRuntimeInitializedClasses(BuildProducer<RuntimeInitializedClassBuildItem> runtimeInitializedClass) {
-        for (String className : RUNTIME_INITIALIZED_CLASSES) {
-            runtimeInitializedClass.produce(new RuntimeInitializedClassBuildItem(className));
         }
     }
 

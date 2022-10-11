@@ -28,8 +28,8 @@ import io.quarkus.deployment.recording.BytecodeRecorderImpl;
 import io.quarkus.runtime.RuntimeValue;
 import io.quarkus.test.QuarkusUnitTest;
 import org.apache.camel.CamelContext;
-import org.apache.camel.quarkus.core.CamelContextCustomizer;
 import org.apache.camel.quarkus.core.deployment.spi.CamelContextCustomizerBuildItem;
+import org.apache.camel.spi.CamelContextCustomizer;
 import org.jboss.shrinkwrap.api.ShrinkWrap;
 import org.jboss.shrinkwrap.api.spec.JavaArchive;
 import org.junit.jupiter.api.Test;
@@ -53,7 +53,7 @@ public class CamelContextCustomizerTest {
                     public void execute(BuildContext context) {
                         String methodName = "execute";
                         BytecodeRecorderImpl bri = new BytecodeRecorderImpl(true, getClass().getSimpleName(), methodName,
-                                Integer.toString(methodName.hashCode()));
+                                Integer.toString(methodName.hashCode()), true, s -> null);
                         RuntimeValue<CamelContextCustomizer> value = bri
                                 .newInstance(RestConfigurationCustomizer.class.getName());
                         context.produce(new CamelContextCustomizerBuildItem(value));

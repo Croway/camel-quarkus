@@ -16,66 +16,133 @@
  */
 package org.apache.camel.quarkus.component.rest.it;
 
+import java.util.Map;
+
+import javax.activation.DataHandler;
 import javax.ws.rs.core.MediaType;
 
 import org.apache.camel.Exchange;
+import org.apache.camel.attachment.AttachmentMessage;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.model.rest.RestBindingMode;
 import org.apache.camel.model.rest.RestParamType;
 
 public class RestRoutes extends RouteBuilder {
 
+    private static final String PERSON_JSON = "{\"firstName\": \"John\", \"lastName\": \"Doe\", \"age\": 64}";
+    private static final String PERSON_XML = "<person firstName=\"John\" lastName=\"Doe\" age=\"64\"/>";
+
     @Override
     public void configure() {
         restConfiguration()
                 .enableCORS(true)
                 .corsAllowCredentials(true)
-                .corsHeaderProperty("Access-Control-Allow-Methods", "GET, POST");
+                .corsHeaderProperty("Access-Control-Allow-Methods", "GET, POST")
+                .endpointProperty("fileNameExtWhitelist", ".txt");
 
         rest("/rest")
-                .get("/get")
-                .route()
-                .setBody(constant("GET: /rest/get"))
-                .endRest()
+                .delete()
+                .produces("text/plain")
+                .to("direct:echoMethodPath")
 
-                .post("/post")
-                .consumes("text/plain").produces("text/plain")
-                .route()
-                .setBody(constant("POST: /rest/post"))
-                .endRest()
+                .get()
+                .produces("text/plain")
+                .to("direct:echoMethodPath")
+
+                .head()
+                .to("direct:contentTypeText")
+
+                .patch()
+                .consumes("text/plain")
+                .produces("text/plain")
+                .to("direct:echoBodyPath")
+
+                .post()
+                .consumes("text/plain")
+                .produces("text/plain")
+                .to("direct:echoBodyPath")
+
+                .put()
+                .consumes("text/plain")
+                .produces("text/plain")
+                .to("direct:echoBodyPath")
 
                 .post("/validation")
                 .clientRequestValidation(true)
                 .param().name("messageStart").type(RestParamType.query).required(true).endParam()
-                // https://issues.apache.org/jira/browse/CAMEL-16560
-                // .param().name("messageEnd").type(RestParamType.body).required(true).endParam()
+                .param().name("messageMiddle").type(RestParamType.body).required(true).endParam()
                 .param().name("messageEnd").type(RestParamType.header).required(true).endParam()
                 .param().name("unused").type(RestParamType.formData).required(false).endParam()
-                .route()
-                .setBody(simple("${header.messageStart} ${header.messageEnd}"))
-                .endRest()
+                .to("direct:greetWithBody")
 
                 .get("/template/{messageStart}/{messageEnd}")
-                .route()
-                .setBody(simple("${header.messageStart} ${header.messageEnd}"))
-                .endRest()
+                .to("direct:greet")
 
                 .post("/pojo/binding/json")
                 .bindingMode(RestBindingMode.json)
                 .type(Person.class)
                 .produces(MediaType.TEXT_PLAIN)
-                .route()
-                .setBody(simple("Name: ${body.firstName} ${body.lastName}, Age: ${body.age}"))
-                .setHeader(Exchange.CONTENT_TYPE, constant("text/plain"))
-                .endRest()
+                .to("direct:personString")
+
+                .get("/binding/json/producer")
+                .to("direct:personJson")
 
                 .post("/pojo/binding/xml")
                 .bindingMode(RestBindingMode.xml)
                 .type(Person.class)
                 .produces(MediaType.TEXT_PLAIN)
-                .route()
-                .setBody(simple("Name: ${body.firstName} ${body.lastName}, Age: ${body.age}"))
+                .to("direct:personString")
+
+                .get("/binding/xml/producer")
+                .to("direct:personXml")
+
+                .post("/log")
+                .to("direct:hello")
+
+                .verb("head", "/custom/verb")
+                .to("direct:contentTypeText")
+
+                .post("/multipart/upload")
+                .to("direct:processAttachments");
+
+        from("direct:echoMethodPath")
+                .setBody().simple("${header.CamelHttpMethod}: ${header.CamelHttpPath}");
+
+        from("direct:echoBodyPath")
+                .setBody().simple("${body}: ${header.CamelHttpPath}");
+
+        from("direct:greetWithBody")
+                .setBody(simple("${header.messageStart} ${body} ${header.messageEnd}"));
+
+        from("direct:greet")
+                .setBody(simple("${header.messageStart} ${header.messageEnd}"));
+
+        from("direct:hello")
+                .log("Hello ${body}");
+
+        from("direct:personString")
                 .setHeader(Exchange.CONTENT_TYPE, constant("text/plain"))
-                .endRest();
+                .setBody().simple("Name: ${body.firstName} ${body.lastName}, Age: ${body.age}");
+
+        from("direct:personJson")
+                .setBody().constant(PERSON_JSON);
+
+        from("direct:personXml")
+                .setBody().constant(PERSON_XML);
+
+        from("direct:contentTypeText")
+                .setHeader(Exchange.CONTENT_TYPE).constant("text/plain");
+
+        from("direct:processAttachments")
+                .process(exchange -> {
+                    AttachmentMessage attachmentMessage = exchange.getMessage(AttachmentMessage.class);
+                    Map<String, DataHandler> attachments = attachmentMessage.getAttachments();
+                    if (attachments != null) {
+                        int size = attachments.size();
+                        exchange.getMessage().setBody(String.valueOf(size));
+                    } else {
+                        exchange.getMessage().setBody("0");
+                    }
+                });
     }
 }

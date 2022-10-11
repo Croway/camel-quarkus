@@ -16,14 +16,21 @@
  */
 package org.apache.camel.quarkus.core.deployment.util;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.apache.camel.quarkus.core.util.FileUtils;
 import org.apache.camel.util.AntPathMatcher;
 import org.apache.camel.util.ObjectHelper;
 import org.jboss.jandex.DotName;
@@ -36,11 +43,14 @@ public class PathFilter {
     private static final int CLASS_SUFFIX_LENGTH = CLASS_SUFFIX.length();
 
     private final AntPathMatcher matcher = new AntPathMatcher();
+    private final List<String> includePaths;
     private final List<String> includePatterns;
     private final List<String> excludePatterns;
     private final Predicate<String> stringPredicate;
 
     PathFilter(List<String> includePatterns, List<String> excludePatterns) {
+        super();
+        this.includePaths = includePatterns.stream().filter(path -> !isPattern(path)).collect(Collectors.toList());
         this.includePatterns = includePatterns;
         this.excludePatterns = excludePatterns;
 
@@ -49,22 +59,17 @@ public class PathFilter {
         } else {
             this.stringPredicate = path -> {
                 path = sanitize(path);
-                // same logic as  org.apache.camel.main.DefaultRoutesCollector so exclude
+                // same logic as org.apache.camel.main.DefaultRoutesCollector so exclude
                 // take precedence over include
-                for (String part : excludePatterns) {
-                    if (matcher.match(part, path)) {
-                        return false;
-                    }
+                if (matchesAny(path, excludePatterns)) {
+                    return false;
                 }
-                for (String part : includePatterns) {
-                    if (matcher.match(part, path)) {
-                        return true;
-                    }
+                if (matchesAny(path, includePatterns)) {
+                    return true;
                 }
                 return ObjectHelper.isEmpty(includePatterns);
             };
         }
-        ;
     }
 
     public Predicate<String> asStringPredicate() {
@@ -87,23 +92,63 @@ public class PathFilter {
         }
     }
 
-    public String[] scanClassNames(Path rootPath, Stream<Path> pathStream, Predicate<Path> isRegularFile) {
-        return pathStream
+    public String[] scanClassNames(Stream<Path> archiveRootDirs) {
+        final Set<String> selectedPaths = new TreeSet<>();
+        archiveRootDirs.forEach(rootDir -> {
+            try (Stream<Path> files = Files.walk(rootDir)) {
+                scanClassNames(rootDir, files, Files::isRegularFile, selectedPaths::add);
+            } catch (IOException e) {
+                throw new RuntimeException("Could not walk " + rootDir, e);
+            }
+        });
+        /* Let's add the paths without wildcards even if they did not match any Jandex class
+         * A workaround for https://github.com/apache/camel-quarkus/issues/2969 */
+        addNonPatternPaths(selectedPaths);
+        return selectedPaths.toArray(new String[0]);
+    }
+
+    void addNonPatternPaths(final Set<String> selectedPaths) {
+        if (!includePaths.isEmpty()) {
+            for (String path : includePaths) {
+                if (!selectedPaths.contains(path) && !matchesAny(path, excludePatterns)) {
+                    selectedPaths.add(path.replace('/', '.'));
+                }
+            }
+        }
+    }
+
+    void scanClassNames(Path rootPath, Stream<Path> pathStream, Predicate<Path> isRegularFile,
+            Consumer<String> resultConsumer) {
+        pathStream
                 .filter(isRegularFile)
                 .filter(path -> path.getFileName().toString().endsWith(CLASS_SUFFIX))
                 .map(rootPath::relativize)
                 .map(Path::toString)
                 .map(stringPath -> stringPath.substring(0, stringPath.length() - CLASS_SUFFIX_LENGTH))
+                .map(FileUtils::nixifyPath)
                 .filter(stringPredicate)
                 .map(slashClassName -> slashClassName.replace('/', '.'))
-                .toArray(String[]::new);
+                .forEach(resultConsumer::accept);
+    }
+
+    boolean matchesAny(String path, List<String> patterns) {
+        for (String part : patterns) {
+            if (matcher.match(part, path)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     static String sanitize(String path) {
-        path = path.trim();
+        path = FileUtils.nixifyPath(path.trim());
         return (!path.isEmpty() && path.charAt(0) == '/')
                 ? path.substring(1)
                 : path;
+    }
+
+    static boolean isPattern(String path) {
+        return path.indexOf('*') != -1 || path.indexOf('?') != -1;
     }
 
     public static class Builder {
@@ -125,7 +170,7 @@ public class PathFilter {
         }
 
         public Builder include(Collection<String> patterns) {
-            patterns.stream().map(PathFilter::sanitize).forEach(includePatterns::add);
+            patterns.stream().forEach(this::include);
             return this;
         }
 
@@ -140,7 +185,7 @@ public class PathFilter {
         }
 
         public Builder exclude(Collection<String> patterns) {
-            patterns.stream().map(PathFilter::sanitize).forEach(excludePatterns::add);
+            patterns.stream().forEach(this::exclude);
             return this;
         }
 

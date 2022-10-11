@@ -20,17 +20,10 @@ import java.util.stream.Stream;
 
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
-import io.quarkus.deployment.builditem.FeatureBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.RuntimeInitializedClassBuildItem;
 
 public class ReactorNettySupportProcessor {
-    static final String FEATURE = "camel-support-reactor-netty";
-
-    @BuildStep
-    FeatureBuildItem feature() {
-        return new FeatureBuildItem(FEATURE);
-    }
 
     @BuildStep
     void runtimeInitializedClasses(BuildProducer<RuntimeInitializedClassBuildItem> runtimeInitializedClasses) {
@@ -39,14 +32,16 @@ public class ReactorNettySupportProcessor {
                 /* The following io.netty.util.* items were not accepted
                  * to quarkus via https://github.com/quarkusio/quarkus/pull/14994
                  * Keeping them here for now */
-                "io.netty.util.NetUtil",
-                "io.netty.channel.socket.InternetProtocolFamily",
-                "io.netty.handler.ssl.OpenSsl",
+                io.netty.util.NetUtil.class.getName(),
                 "io.netty.channel.socket.nio.ProtocolFamilyConverter$1",
+                io.netty.handler.ssl.OpenSsl.class.getName(),
                 "io.netty.internal.tcnative.SSL",
+                "io.netty.resolver.dns.PreferredAddressTypeComparator$1",
 
-                "reactor.netty.http.client.HttpClient",
-                "reactor.netty.tcp.TcpClient",
+                reactor.netty.http.client.HttpClient.class.getName(),
+                "reactor.netty.http.client.HttpClientSecure",
+                reactor.netty.tcp.TcpClient.class.getName(),
+                "reactor.netty.tcp.TcpClientSecure",
                 "reactor.netty.resources.DefaultLoopNativeDetector",
                 "reactor.netty.resources.DefaultLoopEpoll",
                 "reactor.netty.resources.DefaultLoopKQueue",

@@ -24,12 +24,8 @@ import javax.annotation.Generated;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.thoughtworks.xstream.annotations.XStreamAlias;
-import com.thoughtworks.xstream.annotations.XStreamConverter;
-import org.apache.camel.component.salesforce.api.MultiSelectPicklistConverter;
 import org.apache.camel.component.salesforce.api.MultiSelectPicklistDeserializer;
 import org.apache.camel.component.salesforce.api.MultiSelectPicklistSerializer;
-import org.apache.camel.component.salesforce.api.PicklistEnumConverter;
 import org.apache.camel.component.salesforce.api.dto.AbstractDescribedSObjectBase;
 import org.apache.camel.component.salesforce.api.dto.SObjectDescription;
 import org.apache.camel.component.salesforce.api.dto.SObjectDescriptionUrls;
@@ -39,7 +35,6 @@ import org.apache.camel.component.salesforce.api.dto.SObjectField;
  * Salesforce DTO for SObject Account
  */
 @Generated("org.apache.camel.maven.CamelSalesforceMojo")
-@XStreamAlias("Account")
 public class Account extends AbstractDescribedSObjectBase {
 
     public Account() {
@@ -60,7 +55,6 @@ public class Account extends AbstractDescribedSObjectBase {
         this.MasterRecordId = MasterRecordId;
     }
 
-    @XStreamAlias("MasterRecord")
     private Account MasterRecord;
 
     @JsonProperty("MasterRecord")
@@ -73,7 +67,6 @@ public class Account extends AbstractDescribedSObjectBase {
         this.MasterRecord = MasterRecord;
     }
 
-    @XStreamConverter(PicklistEnumConverter.class)
     private Account_TypeEnum Type;
 
     @JsonProperty("Type")
@@ -98,7 +91,6 @@ public class Account extends AbstractDescribedSObjectBase {
         this.ParentId = ParentId;
     }
 
-    @XStreamAlias("Parent")
     private Account Parent;
 
     @JsonProperty("Parent")
@@ -195,7 +187,6 @@ public class Account extends AbstractDescribedSObjectBase {
         this.BillingLongitude = BillingLongitude;
     }
 
-    @XStreamConverter(PicklistEnumConverter.class)
     private Account_BillingGeocodeAccuracyEnum BillingGeocodeAccuracy;
 
     @JsonProperty("BillingGeocodeAccuracy")
@@ -304,7 +295,6 @@ public class Account extends AbstractDescribedSObjectBase {
         this.ShippingLongitude = ShippingLongitude;
     }
 
-    @XStreamConverter(PicklistEnumConverter.class)
     private Account_ShippingGeocodeAccuracyEnum ShippingGeocodeAccuracy;
 
     @JsonProperty("ShippingGeocodeAccuracy")
@@ -401,7 +391,6 @@ public class Account extends AbstractDescribedSObjectBase {
         this.Sic = Sic;
     }
 
-    @XStreamConverter(PicklistEnumConverter.class)
     private Account_IndustryEnum Industry;
 
     @JsonProperty("Industry")
@@ -438,7 +427,6 @@ public class Account extends AbstractDescribedSObjectBase {
         this.NumberOfEmployees = NumberOfEmployees;
     }
 
-    @XStreamConverter(PicklistEnumConverter.class)
     private Account_OwnershipEnum Ownership;
 
     @JsonProperty("Ownership")
@@ -475,7 +463,6 @@ public class Account extends AbstractDescribedSObjectBase {
         this.Description = Description;
     }
 
-    @XStreamConverter(PicklistEnumConverter.class)
     private Account_RatingEnum Rating;
 
     @JsonProperty("Rating")
@@ -498,6 +485,42 @@ public class Account extends AbstractDescribedSObjectBase {
     @JsonProperty("Site")
     public void setSite(String Site) {
         this.Site = Site;
+    }
+
+    private AbstractDescribedSObjectBase Owner;
+
+    @JsonProperty("Owner")
+    public AbstractDescribedSObjectBase getOwner() {
+        return this.Owner;
+    }
+
+    @JsonProperty("Owner")
+    public void setOwner(AbstractDescribedSObjectBase Owner) {
+        this.Owner = Owner;
+    }
+
+    private AbstractDescribedSObjectBase CreatedBy;
+
+    @JsonProperty("CreatedBy")
+    public AbstractDescribedSObjectBase getCreatedBy() {
+        return this.CreatedBy;
+    }
+
+    @JsonProperty("CreatedBy")
+    public void setCreatedBy(AbstractDescribedSObjectBase CreatedBy) {
+        this.CreatedBy = CreatedBy;
+    }
+
+    private AbstractDescribedSObjectBase LastModifiedBy;
+
+    @JsonProperty("LastModifiedBy")
+    public AbstractDescribedSObjectBase getLastModifiedBy() {
+        return this.LastModifiedBy;
+    }
+
+    @JsonProperty("LastModifiedBy")
+    public void setLastModifiedBy(AbstractDescribedSObjectBase LastModifiedBy) {
+        this.LastModifiedBy = LastModifiedBy;
     }
 
     private String Jigsaw;
@@ -524,7 +547,6 @@ public class Account extends AbstractDescribedSObjectBase {
         this.JigsawCompanyId = JigsawCompanyId;
     }
 
-    @XStreamConverter(PicklistEnumConverter.class)
     private Account_CleanStatusEnum CleanStatus;
 
     @JsonProperty("CleanStatus")
@@ -537,7 +559,6 @@ public class Account extends AbstractDescribedSObjectBase {
         this.CleanStatus = CleanStatus;
     }
 
-    @XStreamConverter(PicklistEnumConverter.class)
     private Account_AccountSourceEnum AccountSource;
 
     @JsonProperty("AccountSource")
@@ -634,7 +655,18 @@ public class Account extends AbstractDescribedSObjectBase {
         this.DandbCompanyId = DandbCompanyId;
     }
 
-    @XStreamConverter(PicklistEnumConverter.class)
+    private AbstractDescribedSObjectBase DandbCompany;
+
+    @JsonProperty("DandbCompany")
+    public AbstractDescribedSObjectBase getDandbCompany() {
+        return this.DandbCompany;
+    }
+
+    @JsonProperty("DandbCompany")
+    public void setDandbCompany(AbstractDescribedSObjectBase DandbCompany) {
+        this.DandbCompany = DandbCompany;
+    }
+
     private Account_CustomerPriorityEnum CustomerPriority__c;
 
     @JsonProperty("CustomerPriority__c")
@@ -647,7 +679,6 @@ public class Account extends AbstractDescribedSObjectBase {
         this.CustomerPriority__c = CustomerPriority__c;
     }
 
-    @XStreamConverter(PicklistEnumConverter.class)
     private Account_SLAEnum SLA__c;
 
     @JsonProperty("SLA__c")
@@ -660,7 +691,6 @@ public class Account extends AbstractDescribedSObjectBase {
         this.SLA__c = SLA__c;
     }
 
-    @XStreamConverter(PicklistEnumConverter.class)
     private Account_ActiveEnum Active__c;
 
     @JsonProperty("Active__c")
@@ -685,7 +715,6 @@ public class Account extends AbstractDescribedSObjectBase {
         this.NumberofLocations__c = NumberofLocations__c;
     }
 
-    @XStreamConverter(PicklistEnumConverter.class)
     private Account_UpsellOpportunityEnum UpsellOpportunity__c;
 
     @JsonProperty("UpsellOpportunity__c")
@@ -722,7 +751,6 @@ public class Account extends AbstractDescribedSObjectBase {
         this.SLAExpirationDate__c = SLAExpirationDate__c;
     }
 
-    @XStreamConverter(MultiSelectPicklistConverter.class)
     private Account_MyMultiselectEnum[] MyMultiselect__c;
 
     @JsonProperty("MyMultiselect__c")
@@ -964,18 +992,17 @@ public class Account extends AbstractDescribedSObjectBase {
         description.setName("Account");
 
         final SObjectDescriptionUrls sObjectDescriptionUrls1 = new SObjectDescriptionUrls();
-        sObjectDescriptionUrls1.setApprovalLayouts("/services/data/v50.0/sobjects/Account/describe/approvalLayouts");
-        sObjectDescriptionUrls1.setCompactLayouts("/services/data/v50.0/sobjects/Account/describe/compactLayouts");
-        sObjectDescriptionUrls1.setDefaultValues("/services/data/v50.0/sobjects/Account/defaultValues?recordTypeId&fields");
-        sObjectDescriptionUrls1.setDescribe("/services/data/v50.0/sobjects/Account/describe");
-        sObjectDescriptionUrls1.setLayouts("/services/data/v50.0/sobjects/Account/describe/layouts");
-        sObjectDescriptionUrls1.setListviews("/services/data/v50.0/sobjects/Account/listviews");
-        sObjectDescriptionUrls1.setQuickActions("/services/data/v50.0/sobjects/Account/quickActions");
-        sObjectDescriptionUrls1.setRowTemplate("/services/data/v50.0/sobjects/Account/{ID}");
-        sObjectDescriptionUrls1.setSobject("/services/data/v50.0/sobjects/Account");
-        sObjectDescriptionUrls1.setUiDetailTemplate("https://eu37.salesforce.com/{ID}");
-        sObjectDescriptionUrls1.setUiEditTemplate("https://eu37.salesforce.com/{ID}/e");
-        sObjectDescriptionUrls1.setUiNewRecord("https://eu37.salesforce.com/001/e");
+        sObjectDescriptionUrls1.setApprovalLayouts("/services/data/v54.0/sobjects/Account/describe/approvalLayouts");
+        sObjectDescriptionUrls1.setCompactLayouts("/services/data/v54.0/sobjects/Account/describe/compactLayouts");
+        sObjectDescriptionUrls1.setDescribe("/services/data/v54.0/sobjects/Account/describe");
+        sObjectDescriptionUrls1.setLayouts("/services/data/v54.0/sobjects/Account/describe/layouts");
+        sObjectDescriptionUrls1.setListviews("/services/data/v54.0/sobjects/Account/listviews");
+        sObjectDescriptionUrls1.setQuickActions("/services/data/v54.0/sobjects/Account/quickActions");
+        sObjectDescriptionUrls1.setRowTemplate("/services/data/v54.0/sobjects/Account/{ID}");
+        sObjectDescriptionUrls1.setSobject("/services/data/v54.0/sobjects/Account");
+        sObjectDescriptionUrls1.setUiDetailTemplate("https://d24000000cqlxeai-dev-ed.my.salesforce.com/{ID}");
+        sObjectDescriptionUrls1.setUiEditTemplate("https://d24000000cqlxeai-dev-ed.my.salesforce.com/{ID}/e");
+        sObjectDescriptionUrls1.setUiNewRecord("https://d24000000cqlxeai-dev-ed.my.salesforce.com/001/e");
         description.setUrls(sObjectDescriptionUrls1);
 
         return description;

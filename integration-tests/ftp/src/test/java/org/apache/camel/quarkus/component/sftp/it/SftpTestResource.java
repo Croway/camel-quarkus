@@ -23,15 +23,16 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import io.quarkus.test.common.QuarkusTestResourceLifecycleManager;
 import org.apache.camel.quarkus.test.AvailablePortFinder;
 import org.apache.camel.util.CollectionHelper;
 import org.apache.sshd.common.file.virtualfs.VirtualFileSystemFactory;
 import org.apache.sshd.common.keyprovider.ClassLoadableResourceKeyPairProvider;
+import org.apache.sshd.scp.server.ScpCommandFactory;
 import org.apache.sshd.server.SshServer;
-import org.apache.sshd.server.scp.ScpCommandFactory;
-import org.apache.sshd.server.subsystem.sftp.SftpSubsystemFactory;
+import org.apache.sshd.sftp.server.SftpSubsystemFactory;
 import org.jboss.logging.Logger;
 
 public class SftpTestResource implements QuarkusTestResourceLifecycleManager {
@@ -89,13 +90,17 @@ public class SftpTestResource implements QuarkusTestResourceLifecycleManager {
 
         try {
             if (sftpHome != null) {
-                Files.walk(sftpHome)
-                        .sorted(Comparator.reverseOrder())
-                        .map(Path::toFile)
-                        .forEach(File::delete);
+                try (Stream<Path> files = Files.walk(sftpHome)) {
+                    files
+                            .sorted(Comparator.reverseOrder())
+                            .map(Path::toFile)
+                            .forEach(File::delete);
+                }
             }
         } catch (Exception e) {
             LOGGER.warn("Failed delete sftp home: {}, {}", sftpHome, e);
         }
+
+        AvailablePortFinder.releaseReservedPorts();
     }
 }

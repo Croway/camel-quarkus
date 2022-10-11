@@ -20,8 +20,10 @@ import java.lang.reflect.Type;
 import java.util.Arrays;
 import java.util.List;
 
+import javax.enterprise.context.ApplicationScoped;
+import javax.inject.Inject;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.google.gson.ExclusionStrategy;
 import com.google.gson.FieldAttributes;
 import com.google.gson.FieldNamingPolicy;
@@ -39,14 +41,16 @@ import org.apache.camel.quarkus.component.dataformats.json.model.PojoB;
 import org.apache.camel.spi.DataFormat;
 import org.apache.johnzon.mapper.reflection.JohnzonParameterizedType;
 
+@ApplicationScoped
 public class JsonDataformatsRoute extends RouteBuilder {
+
+    @Inject
+    ObjectMapper jacksonObjectMapper;
 
     @Override
     public void configure() {
         JacksonDataFormat jacksonDummyObjectDataFormat = new JacksonDataFormat(DummyObject.class);
         jacksonDummyObjectDataFormat.useList();
-        ObjectMapper jacksonObjectMapper = new ObjectMapper();
-        jacksonObjectMapper.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
         jacksonDummyObjectDataFormat.setObjectMapper(jacksonObjectMapper);
         configureJsonRoutes(JsonLibrary.Jackson, jacksonDummyObjectDataFormat, new JacksonDataFormat(PojoA.class),
                 new JacksonDataFormat(PojoB.class));
@@ -61,6 +65,7 @@ public class JsonDataformatsRoute extends RouteBuilder {
         Type genericType = new TypeToken<List<DummyObject>>() {
         }.getType();
         gsonDummyObjectDataFormat.setUnmarshalGenericType(genericType);
+        gsonDummyObjectDataFormat.setDateFormatPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
         gsonDummyObjectDataFormat.setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES);
         gsonDummyObjectDataFormat.setExclusionStrategies(Arrays.<ExclusionStrategy> asList(new ExclusionStrategy() {
             @Override
@@ -73,7 +78,11 @@ public class JsonDataformatsRoute extends RouteBuilder {
                 return false;
             }
         }));
-        configureJsonRoutes(JsonLibrary.Gson, gsonDummyObjectDataFormat, new GsonDataFormat(PojoA.class),
+
+        GsonDataFormat unmarshalByTypeNameGsonDataFormat = new GsonDataFormat();
+        unmarshalByTypeNameGsonDataFormat
+                .setUnmarshalTypeName("org.apache.camel.quarkus.component.dataformats.json.model.PojoA");
+        configureJsonRoutes(JsonLibrary.Gson, gsonDummyObjectDataFormat, unmarshalByTypeNameGsonDataFormat,
                 new GsonDataFormat(PojoB.class));
 
         JsonbDataFormat jsonBDummyObjectDataFormat = new JsonbDataFormat(new ParamType(List.class, DummyObject.class));
@@ -82,11 +91,11 @@ public class JsonDataformatsRoute extends RouteBuilder {
 
         from("direct:jacksonxml-marshal")
                 .marshal()
-                .jacksonxml(true);
+                .jacksonXml(true);
 
         from("direct:jacksonxml-unmarshal")
                 .unmarshal()
-                .jacksonxml(PojoA.class);
+                .jacksonXml(PojoA.class);
 
     }
 

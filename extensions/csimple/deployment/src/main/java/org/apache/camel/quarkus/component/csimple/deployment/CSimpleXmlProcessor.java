@@ -18,22 +18,17 @@ package org.apache.camel.quarkus.component.csimple.deployment;
 
 import java.io.FileNotFoundException;
 import java.io.InputStream;
-import java.util.List;
 import java.util.stream.Stream;
 
 import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
 
-import io.quarkus.deployment.Capabilities;
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
 import org.apache.camel.impl.DefaultCamelContext;
 import org.apache.camel.impl.engine.DefaultPackageScanResourceResolver;
-import org.apache.camel.quarkus.core.CamelConfig;
 import org.apache.camel.quarkus.core.deployment.LanguageExpressionContentHandler;
-import org.apache.camel.quarkus.core.deployment.spi.CamelRoutesBuilderClassBuildItem;
 import org.apache.camel.quarkus.core.deployment.util.CamelSupport;
-import org.apache.camel.quarkus.support.common.CamelCapabilities;
 import org.apache.camel.spi.Resource;
 import org.apache.camel.util.AntPathMatcher;
 import org.jboss.logging.Logger;
@@ -42,58 +37,51 @@ public class CSimpleXmlProcessor {
     private static final Logger LOG = Logger.getLogger(CSimpleXmlProcessor.class);
 
     @BuildStep
-    void collectCSimpleExpresions(
-            CamelConfig config,
-            List<CamelRoutesBuilderClassBuildItem> routesBuilderClasses,
-            BuildProducer<CSimpleExpressionSourceBuildItem> csimpleExpressions,
-            Capabilities capabilities)
-            throws Exception {
+    void collectCSimpleExpresions(BuildProducer<CSimpleExpressionSourceBuildItem> csimpleExpressions) throws Exception {
 
-        if (capabilities.isCapabilityPresent(CamelCapabilities.MAIN)) {
-            final String[] includes = Stream.of(
-                    "camel.main.routesIncludePattern",
-                    "camel.main.routes-include-pattern")
-                    .map(prop -> CamelSupport.getOptionalConfigValue(prop, String[].class, new String[0]))
-                    .flatMap(Stream::of)
-                    .filter(path -> !path.equals("false"))
-                    .toArray(String[]::new);
+        final String[] includes = Stream.of(
+                "camel.main.routesIncludePattern",
+                "camel.main.routes-include-pattern")
+                .map(prop -> CamelSupport.getOptionalConfigValue(prop, String[].class, new String[0]))
+                .flatMap(Stream::of)
+                .filter(path -> !path.equals("false"))
+                .toArray(String[]::new);
 
-            final String[] excludes = Stream.of(
-                    "camel.main.routesExcludePattern",
-                    "camel.main.routes-exclude-pattern")
-                    .map(prop -> CamelSupport.getOptionalConfigValue(prop, String[].class, new String[0]))
-                    .flatMap(Stream::of)
-                    .filter(path -> !path.equals("false"))
-                    .toArray(String[]::new);
+        final String[] excludes = Stream.of(
+                "camel.main.routesExcludePattern",
+                "camel.main.routes-exclude-pattern")
+                .map(prop -> CamelSupport.getOptionalConfigValue(prop, String[].class, new String[0]))
+                .flatMap(Stream::of)
+                .filter(path -> !path.equals("false"))
+                .toArray(String[]::new);
 
-            try (DefaultPackageScanResourceResolver resolver = new DefaultPackageScanResourceResolver()) {
-                resolver.setCamelContext(new DefaultCamelContext());
+        try (DefaultPackageScanResourceResolver resolver = new DefaultPackageScanResourceResolver()) {
+            resolver.setCamelContext(new DefaultCamelContext());
 
-                final SAXParserFactory saxParserFactory = SAXParserFactory.newInstance();
-                saxParserFactory.setNamespaceAware(true);
-                final SAXParser saxParser = saxParserFactory.newSAXParser();
+            final SAXParserFactory saxParserFactory = SAXParserFactory.newInstance();
+            saxParserFactory.setNamespaceAware(true);
+            final SAXParser saxParser = saxParserFactory.newSAXParser();
 
-                for (String include : includes) {
-                    for (Resource resource : resolver.findResources(include)) {
-                        if (AntPathMatcher.INSTANCE.anyMatch(excludes, resource.getLocation())) {
-                            continue;
-                        }
+            for (String include : includes) {
+                for (Resource resource : resolver.findResources(include)) {
+                    if (AntPathMatcher.INSTANCE.anyMatch(excludes, resource.getLocation())) {
+                        continue;
+                    }
 
-                        try (InputStream is = resource.getInputStream()) {
-                            saxParser.parse(
-                                    is,
-                                    new LanguageExpressionContentHandler(
-                                            "csimple",
-                                            (script, isPredicate) -> csimpleExpressions.produce(
-                                                    new CSimpleExpressionSourceBuildItem(
-                                                            script,
-                                                            isPredicate,
-                                                            "org.apache.camel.language.csimple.XmlRouteBuilder"))));
-                        } catch (FileNotFoundException e) {
-                            LOG.debugf("No XML routes found in %s. Skipping XML routes detection.", resource.getLocation());
-                        } catch (Exception e) {
-                            throw new RuntimeException("Could not analyze CSimple expressions in " + resource.getLocation(), e);
-                        }
+                    try (InputStream is = resource.getInputStream()) {
+                        saxParser.parse(
+                                is,
+                                new LanguageExpressionContentHandler(
+                                        "csimple",
+                                        (script, isPredicate) -> csimpleExpressions.produce(
+                                                new CSimpleExpressionSourceBuildItem(
+                                                        script,
+                                                        isPredicate,
+                                                        "org.apache.camel.language.csimple.XmlRouteBuilder"))));
+                    } catch (FileNotFoundException e) {
+                        LOG.debugf("No XML routes found in %s. Skipping XML routes detection.", resource.getLocation());
+                    } catch (Exception e) {
+                        throw new RuntimeException("Could not analyze CSimple expressions in " + resource.getLocation(), e);
                     }
                 }
             }

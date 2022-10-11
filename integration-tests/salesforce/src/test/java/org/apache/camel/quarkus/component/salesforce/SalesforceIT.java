@@ -16,14 +16,9 @@
  */
 package org.apache.camel.quarkus.component.salesforce;
 
-import io.quarkus.test.junit.NativeImageTest;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import io.quarkus.test.junit.QuarkusIntegrationTest;
 
-@EnabledIfEnvironmentVariable(named = "SALESFORCE_USERNAME", matches = ".+")
-@EnabledIfEnvironmentVariable(named = "SALESFORCE_PASSWORD", matches = ".+")
-@EnabledIfEnvironmentVariable(named = "SALESFORCE_CLIENTID", matches = ".+")
-@EnabledIfEnvironmentVariable(named = "SALESFORCE_CLIENTSECRET", matches = ".+")
-@NativeImageTest
+@QuarkusIntegrationTest
 class SalesforceIT extends SalesforceTest {
 
 }

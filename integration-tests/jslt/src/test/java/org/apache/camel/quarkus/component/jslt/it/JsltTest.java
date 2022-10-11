@@ -19,6 +19,7 @@ package org.apache.camel.quarkus.component.jslt.it;
 import java.io.IOException;
 
 import io.quarkus.test.junit.QuarkusTest;
+import org.apache.camel.util.FileUtil;
 import org.junit.jupiter.api.Test;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -26,7 +27,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static io.restassured.RestAssured.given;
 import static org.apache.commons.io.IOUtils.resourceToString;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.matchesRegex;
 
 @QuarkusTest
 class JsltTest {
@@ -42,7 +43,7 @@ class JsltTest {
     @Test
     public void transformInvalidBodyShouldIssueValidationErrorMessage() {
         given().when().get("/jslt/transformInvalidBody").then().statusCode(200)
-                .body(startsWith("Allowed body types are String or InputStream."));
+                .body(matchesRegex("Allowed body types are.*"));
     }
 
     @Test
@@ -57,6 +58,11 @@ class JsltTest {
     public void transformFromHeaderWithPrettyPrintShouldSucceed() throws IOException {
         String expected = resourceToString("/demoPlayground/outputPrettyPrint.json", UTF_8);
         String input = resourceToString("/demoPlayground/input.json", UTF_8);
+
+        if (FileUtil.isWindows()) {
+            // Jackson ObjectMapper pretty printing uses platform line endings by default
+            expected = expected.replace("\n", System.lineSeparator());
+        }
 
         given().when().body(input).get("/jslt/transformFromHeaderWithPrettyPrint").then().statusCode(200).body(is(expected));
     }

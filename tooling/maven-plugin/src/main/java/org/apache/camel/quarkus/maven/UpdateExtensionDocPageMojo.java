@@ -27,7 +27,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -46,6 +48,10 @@ import io.quarkus.annotation.processor.generate_doc.ConfigDocKey;
 import io.quarkus.annotation.processor.generate_doc.DocGeneratorUtil;
 import io.quarkus.annotation.processor.generate_doc.FsMap;
 import org.apache.camel.catalog.Kind;
+import org.apache.camel.quarkus.maven.processor.AppendNewLinePostProcessor;
+import org.apache.camel.quarkus.maven.processor.AsciiDocFile;
+import org.apache.camel.quarkus.maven.processor.DocumentationPostProcessor;
+import org.apache.camel.quarkus.maven.processor.SectionIdPostProcessor;
 import org.apache.camel.tooling.model.ArtifactModel;
 import org.apache.camel.tooling.model.BaseModel;
 import org.apache.camel.tooling.model.ComponentModel;
@@ -59,6 +65,10 @@ import org.apache.maven.plugins.annotations.Parameter;
 public class UpdateExtensionDocPageMojo extends AbstractDocGeneratorMojo {
 
     private static final Map<String, Boolean> nativeSslActivators = new ConcurrentHashMap<>();
+    private static final DocumentationPostProcessor[] documentationPostProcessors = {
+            new AppendNewLinePostProcessor(),
+            new SectionIdPostProcessor()
+    };
 
     @Parameter(defaultValue = "false", property = "camel-quarkus.update-extension-doc-page.skip")
     boolean skip = false;
@@ -78,10 +88,12 @@ public class UpdateExtensionDocPageMojo extends AbstractDocGeneratorMojo {
             return;
         }
 
-        final CqCatalog catalog = CqCatalog.getThreadLocalCamelCatalog();
+        final CqCatalog catalog = new CqCatalog();
 
         final Path multiModuleProjectDirectoryPath = multiModuleProjectDirectory.toPath();
         final CamelQuarkusExtension ext = CamelQuarkusExtension.read(basePath.resolve("pom.xml"));
+        final Path quarkusAwsClientTestsDir = multiModuleProjectDirectoryPath
+                .resolve("integration-test-groups/aws2-quarkus-client");
 
         final Path pomRelPath = multiModuleProjectDirectoryPath.relativize(basePath).resolve("pom.xml");
         if (!ext.getJvmSince().isPresent()) {
@@ -98,6 +110,7 @@ public class UpdateExtensionDocPageMojo extends AbstractDocGeneratorMojo {
                 templatesUriBase, encoding);
 
         final List<ArtifactModel<?>> models = catalog.filterModels(ext.getRuntimeArtifactIdBase())
+                .filter(artifactModel -> !artifactModel.getArtifactId().equals("camel-management"))
                 .sorted(BaseModel.compareTitle())
                 .collect(Collectors.toList());
 
@@ -111,7 +124,7 @@ public class UpdateExtensionDocPageMojo extends AbstractDocGeneratorMojo {
         final String description = CqUtils.getDescription(models, ext.getDescription().orElse(null), getLog());
         model.put("description", description);
         model.put("status", ext.getStatus().getCapitalized());
-        final boolean deprecated = CqUtils.isDeprecated(title, models);
+        final boolean deprecated = CqUtils.isDeprecated(title, models, ext.isDeprecated());
         model.put("statusDeprecation",
                 deprecated ? ext.getStatus().getCapitalized() + " Deprecated" : ext.getStatus().getCapitalized());
         model.put("deprecated", deprecated);
@@ -121,15 +134,28 @@ public class UpdateExtensionDocPageMojo extends AbstractDocGeneratorMojo {
         if (lowerEqual_1_0_0(jvmSince)) {
             model.put("pageAliases", "extensions/" + ext.getRuntimeArtifactIdBase() + ".adoc");
         }
-        model.put("intro", loadSection(basePath, "intro.adoc", charset, description));
+        model.put("intro", loadSection(basePath, "intro.adoc", charset, description, ext));
         model.put("models", models);
-        model.put("usage", loadSection(basePath, "usage.adoc", charset, null));
-        model.put("configuration", loadSection(basePath, "configuration.adoc", charset, null));
-        model.put("limitations", loadSection(basePath, "limitations.adoc", charset, null));
+        model.put("usage", loadSection(basePath, "usage.adoc", charset, null, ext));
+        model.put("usageAdvanced", loadSection(basePath, "usage-advanced.adoc", charset, null, ext));
+        model.put("configuration", loadSection(basePath, "configuration.adoc", charset, null, ext));
+        model.put("limitations", loadSection(basePath, "limitations.adoc", charset, null, ext));
         model.put("activatesNativeSsl", ext.isNativeSupported() && detectNativeSsl(multiModuleProjectDirectory.toPath(),
                 basePath, ext.getRuntimeArtifactId(), ext.getDependencies(), nativeSslActivators));
         model.put("activatesContextMapAll",
-                ext.isNativeSupported() && detectAllowContextMapAll(catalog, ext.getRuntimeArtifactIdBase()));
+                ext.isNativeSupported()
+                        && detectComponentOrEndpointOption(catalog, ext.getRuntimeArtifactIdBase(), "allowContextMapAll"));
+        model.put("activatesTransferException",
+                ext.isNativeSupported()
+                        && detectComponentOrEndpointOption(catalog, ext.getRuntimeArtifactIdBase(), "transferException"));
+        model.put(
+                "quarkusAwsClient",
+                getQuarkusAwsClient(
+                        quarkusAwsClientTestsDir,
+                        ext.getRuntimeArtifactIdBase(),
+                        ext.getQuarkusAwsClientBaseName(),
+                        ext.getQuarkusAwsClientFqClassName(),
+                        ext.getRuntimePomXmlPath()));
         model.put("configOptions", listConfigOptions(basePath, multiModuleProjectDirectory.toPath()));
         model.put("humanReadableKind", new TemplateMethodModelEx() {
             @Override
@@ -147,7 +173,6 @@ public class UpdateExtensionDocPageMojo extends AbstractDocGeneratorMojo {
                     throw new TemplateModelException("Wrong argument count in camelBitLink()");
                 }
                 final ArtifactModel<?> model = (ArtifactModel<?>) DeepUnwrap.unwrap((TemplateModel) arguments.get(0));
-                final String kind = model.getKind();
                 if (CqCatalog.isFirstScheme(model)) {
                     return camelBitLink(model);
                 } else {
@@ -161,8 +186,12 @@ public class UpdateExtensionDocPageMojo extends AbstractDocGeneratorMojo {
             private String camelBitLink(ArtifactModel<?> model) {
                 model = CqCatalog.toCamelDocsModel(model);
                 final String kind = model.getKind();
+                String name = model.getName();
+                if (name.equals("xml-io-dsl")) {
+                    name = "java-xml-io-dsl";
+                }
                 return "xref:{cq-camel-components}:" + (!"component".equals(kind) ? kind + "s:" : ":")
-                        + model.getName() + (!"other".equals(kind) ? "-" + kind : "") + ".adoc";
+                        + name + (!"other".equals(kind) ? "-" + kind : "") + ".adoc";
             }
         });
         model.put("toAnchor", new TemplateMethodModelEx() {
@@ -218,7 +247,7 @@ public class UpdateExtensionDocPageMojo extends AbstractDocGeneratorMojo {
                 // Apostrophes.
                 string = string.replaceAll("([a-z])'s([^a-z])", "$1s$2");
                 // Allow only letters, -, _, .
-                string = string.replaceAll("[^\\w-_\\.]", "-").replaceAll("-{2,}", "-");
+                string = string.replaceAll("[^\\w-_.]", "-").replaceAll("-{2,}", "-");
                 // Get rid of any - at the start and end.
                 string = string.replaceAll("-+$", "").replaceAll("^-+", "");
 
@@ -228,20 +257,23 @@ public class UpdateExtensionDocPageMojo extends AbstractDocGeneratorMojo {
         final Path docPagePath = multiModuleProjectDirectoryPath
                 .resolve("docs/modules/ROOT/pages/reference/extensions/" + ext.getRuntimeArtifactIdBase() + ".adoc");
 
-        evalTemplate(charset, docPagePath, cfg, model, "extension-doc-page.adoc");
+        evalTemplate(charset, docPagePath, cfg, model, "extension-doc-page.adoc", "//");
 
-        camelBits(charset, cfg, models, multiModuleProjectDirectoryPath, ext, model);
+        camelBits(charset, cfg, models, multiModuleProjectDirectoryPath, model);
     }
 
     static void evalTemplate(final Charset charset, final Path docPagePath, final Configuration cfg,
-            final Map<String, Object> model, String template) {
+            final Map<String, Object> model, String template, String commentMarker) {
         try {
             Files.createDirectories(docPagePath.getParent());
         } catch (IOException e) {
             throw new RuntimeException("Could not create directories " + docPagePath.getParent(), e);
         }
-        String pageText = "// Do not edit directly!\n// This file was generated by camel-quarkus-maven-plugin:update-extension-doc-page\n"
-                + evalTemplate(cfg, template, model, new StringWriter()).toString();
+        String pageText = commentMarker
+                + " Do not edit directly!\n"
+                + commentMarker
+                + " This file was generated by camel-quarkus-maven-plugin:update-extension-doc-page\n"
+                + evalTemplate(cfg, template, model, new StringWriter());
         try {
             Files.write(docPagePath, pageText.getBytes(charset));
         } catch (IOException e) {
@@ -250,7 +282,7 @@ public class UpdateExtensionDocPageMojo extends AbstractDocGeneratorMojo {
     }
 
     void camelBits(Charset charset, Configuration cfg, List<ArtifactModel<?>> models, Path multiModuleProjectDirectoryPath,
-            CamelQuarkusExtension ext, Map<String, Object> model) {
+            Map<String, Object> model) {
         models.stream()
                 .filter(CqCatalog::isFirstScheme)
                 .forEach(m -> {
@@ -262,10 +294,10 @@ public class UpdateExtensionDocPageMojo extends AbstractDocGeneratorMojo {
 
                     final ArtifactModel<?> camelDocModel = CqCatalog.toCamelDocsModel(m);
                     final Path docPagePath = multiModuleProjectDirectoryPath
-                            .resolve("docs/modules/ROOT/partials/reference/" + CqUtils.kindPlural(kind) + "/"
-                                    + camelDocModel.getName() + ".adoc");
+                            .resolve("docs/modules/ROOT/examples/" + CqUtils.kindPlural(kind) + "/"
+                                    + camelDocModel.getName() + ".yml");
 
-                    evalTemplate(charset, docPagePath, cfg, modelClone, "extensions-camel-bits.adoc");
+                    evalTemplate(charset, docPagePath, cfg, modelClone, "extensions-camel-bits.yml", "#");
 
                 });
 
@@ -300,6 +332,26 @@ public class UpdateExtensionDocPageMojo extends AbstractDocGeneratorMojo {
         return false;
     }
 
+    static QuarkusAwsClient getQuarkusAwsClient(Path quarkusAwsClienTestsDir, String artifactIdBase,
+            Optional<String> quarkusAwsClientBaseName, Optional<String> quarkusAwsClientFqClassName, Path runtimePomPath) {
+        if (quarkusAwsClientBaseName.isPresent() && quarkusAwsClientFqClassName.isPresent()) {
+            return new QuarkusAwsClient(quarkusAwsClientBaseName.get(), quarkusAwsClientFqClassName.get());
+        }
+        /* We assume Quarkus client exists if there is a test under integration-test-groups/aws2-quarkus-client */
+        final Path quarkusClientTestPath = quarkusAwsClienTestsDir.resolve(artifactIdBase + "/pom.xml");
+        if (Files.isRegularFile(quarkusClientTestPath)) {
+            if (!quarkusAwsClientBaseName.isPresent()) {
+                throw new IllegalStateException(quarkusClientTestPath
+                        + " exists but cq.quarkus.aws.client.baseName property is not defined in " + runtimePomPath);
+            }
+            if (!quarkusAwsClientFqClassName.isPresent()) {
+                throw new IllegalStateException(quarkusClientTestPath
+                        + " exists but cq.quarkus.aws.client.fqClassName property is not defined in " + runtimePomPath);
+            }
+        }
+        return null;
+    }
+
     static boolean detectNativeSsl(Path deploymentBasePath) {
         final Path deploymentPackageDir = deploymentBasePath.resolve("src/main/java/org/apache/camel/quarkus")
                 .toAbsolutePath()
@@ -310,36 +362,34 @@ public class UpdateExtensionDocPageMojo extends AbstractDocGeneratorMojo {
         }
 
         try (Stream<Path> files = Files.walk(deploymentPackageDir)) {
-            final boolean anyMatch = files
+            return files
                     .filter(p -> p.getFileName().toString().endsWith("Processor.java"))
                     .map(p -> {
                         try {
-                            return new String(Files.readAllBytes(p), StandardCharsets.UTF_8);
+                            return Files.readString(p);
                         } catch (Exception e) {
                             throw new RuntimeException("Could not read from " + p, e);
                         }
                     })
                     .anyMatch(source -> source.contains("new ExtensionSslNativeSupportBuildItem"));
-            return anyMatch;
         } catch (IOException e) {
             throw new RuntimeException("Could not walk " + deploymentPackageDir, e);
         }
     }
 
-    static boolean detectAllowContextMapAll(CqCatalog catalog, String artifactId) {
-        final String allowContextMapAll = "allowContextMapAll";
+    static boolean detectComponentOrEndpointOption(CqCatalog catalog, String artifactId, String option) {
         return catalog.filterModels(artifactId)
                 .filter(m -> m instanceof ComponentModel)
                 .map(m -> (ComponentModel) m)
                 .anyMatch(componentModel -> {
                     for (ComponentModel.ComponentOptionModel model : componentModel.getOptions()) {
-                        if (model.getName().equals(allowContextMapAll)) {
+                        if (model.getName().equals(option)) {
                             return true;
                         }
                     }
 
                     for (ComponentModel.EndpointOptionModel model : componentModel.getEndpointOptions()) {
-                        if (model.getName().equals(allowContextMapAll)) {
+                        if (model.getName().equals(option)) {
                             return true;
                         }
                     }
@@ -348,18 +398,19 @@ public class UpdateExtensionDocPageMojo extends AbstractDocGeneratorMojo {
                 });
     }
 
-    private static String loadSection(Path basePath, String fileName, Charset charset, String default_) {
+    private static String loadSection(
+            Path basePath,
+            String fileName,
+            Charset charset,
+            String default_,
+            CamelQuarkusExtension extension) {
         Path p = basePath.resolve("src/main/doc/" + fileName);
         if (Files.exists(p)) {
-            try {
-                final String result = new String(Files.readAllBytes(p), charset);
-                if (!result.endsWith("\n")) {
-                    return result + "\n";
-                }
-                return result;
-            } catch (IOException e) {
-                throw new RuntimeException("Could not read " + p, e);
+            AsciiDocFile file = new AsciiDocFile(p, extension.getRuntimeArtifactIdBase(), charset);
+            for (DocumentationPostProcessor processor : documentationPostProcessors) {
+                processor.process(file);
             }
+            return file.getContent();
         } else {
             return default_;
         }
@@ -374,12 +425,12 @@ public class UpdateExtensionDocPageMojo extends AbstractDocGeneratorMojo {
                 .resolve("target/asciidoc/generated/config/all-configuration-roots-generated-doc");
         if (!Files.exists(configRootsModelsDir)) {
             throw new IllegalStateException("You should run " + UpdateExtensionDocPageMojo.class.getSimpleName()
-                    + " after compileation with io.quarkus.annotation.processor.ExtensionAnnotationProcessor");
+                    + " after compilation with io.quarkus.annotation.processor.ExtensionAnnotationProcessor");
         }
         final FsMap configRootsModels = new FsMap(configRootsModelsDir);
 
         final ObjectMapper mapper = new ObjectMapper();
-        final List<ConfigDocItem> configDocItems = new ArrayList<ConfigDocItem>();
+        final List<ConfigDocItem> configDocItems = new ArrayList<>();
         for (String configRootClass : configRootClasses) {
             final String rawModel = configRootsModels.get(configRootClass);
             if (rawModel == null) {
@@ -387,9 +438,7 @@ public class UpdateExtensionDocPageMojo extends AbstractDocGeneratorMojo {
             }
             try {
                 final List<ConfigDocItem> items = mapper.readValue(rawModel, Constants.LIST_OF_CONFIG_ITEMS_TYPE_REF);
-                for (ConfigDocItem item : items) {
-                    configDocItems.add(item);
-                }
+                configDocItems.addAll(items);
             } catch (JsonProcessingException e) {
                 throw new RuntimeException("Could not parse " + rawModel, e);
             }
@@ -412,6 +461,50 @@ public class UpdateExtensionDocPageMojo extends AbstractDocGeneratorMojo {
                     .collect(Collectors.toList());
         } catch (IOException e) {
             throw new RuntimeException("Could not read from " + configRootsListPath, e);
+        }
+    }
+
+    public static class QuarkusAwsClient {
+        public QuarkusAwsClient(String nameBase, String clientClassFqName) {
+            super();
+            this.nameBase = nameBase;
+            this.clientClassFqName = clientClassFqName;
+        }
+
+        private final String nameBase; // DynamoDB
+        private final String clientClassFqName; // software.amazon.awssdk.services.dynamodb.DynamoDbClient
+
+        public String getExtensionName() {
+            return "Quarkus Amazon " + nameBase;
+        }
+
+        public String getExtensionNameIdHeading() {
+            return getExtensionName().toLowerCase().replace(" ", "-");
+        }
+
+        public String getConfigurationUrl() {
+            String lowerCaseName = nameBase.toLowerCase(Locale.ROOT);
+            return "https://quarkus.io/guides/amazon-" + lowerCaseName + "#configuring-" + lowerCaseName + "-clients";
+        }
+
+        public String getConfigBase() {
+            return "quarkus." + nameBase.toLowerCase(Locale.ROOT);
+        }
+
+        public String getClientClassSimpleName() {
+            final int lastPeriod = clientClassFqName.lastIndexOf('.');
+            return clientClassFqName.substring(lastPeriod + 1);
+        }
+
+        public String getClientClassFqName() {
+            return clientClassFqName;
+        }
+
+        public String getClientFieldName() {
+            /* Just lowercase the first letter of getClientClassSimpleName() */
+            char[] c = getClientClassSimpleName().toCharArray();
+            c[0] += 32;
+            return new String(c);
         }
     }
 

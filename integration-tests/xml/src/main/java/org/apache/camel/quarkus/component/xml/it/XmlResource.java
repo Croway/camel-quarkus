@@ -42,23 +42,18 @@ public class XmlResource {
     @Inject
     ConsumerTemplate consumerTemplate;
 
-    @Path("/html-parse")
-    @POST
-    @Consumes(MediaType.TEXT_HTML)
-    @Produces(MediaType.TEXT_PLAIN)
-    public String htmlParse(String html) {
-        LOG.debugf("Parsing HTML %s", html);
-        return producerTemplate.requestBody(
-                XmlRouteBuilder.DIRECT_HTML_TO_DOM,
-                html,
-                String.class);
-    }
-
     @Path("/xslt")
     @POST
     @Produces(MediaType.TEXT_PLAIN)
-    public String classpath(String body) throws Exception {
+    public String classpath(String body) {
         return producerTemplate.requestBody("xslt:xslt/classpath-transform.xsl", body, String.class);
+    }
+
+    @Path("/xslt-extension-function")
+    @POST
+    @Produces(MediaType.TEXT_PLAIN)
+    public String extensionFunction(String body) {
+        return producerTemplate.requestBody("xslt:xslt/extension-function.xsl", body, String.class);
     }
 
     @Path("/html-transform")

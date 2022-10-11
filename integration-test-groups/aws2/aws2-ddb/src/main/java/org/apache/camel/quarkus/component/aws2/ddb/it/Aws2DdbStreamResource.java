@@ -16,60 +16,61 @@
  */
 package org.apache.camel.quarkus.component.aws2.ddb.it;
 
-import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.enterprise.context.ApplicationScoped;
-import javax.enterprise.event.Observes;
 import javax.inject.Inject;
+import javax.inject.Named;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 
-import io.quarkus.runtime.StartupEvent;
-import org.apache.camel.ConsumerTemplate;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-import software.amazon.awssdk.services.dynamodb.model.Record;
-import software.amazon.awssdk.services.dynamodb.model.StreamRecord;
+import org.apache.camel.CamelContext;
 
 @Path("/aws2-ddbstream")
 @ApplicationScoped
 public class Aws2DdbStreamResource {
 
-    @ConfigProperty(name = "aws-ddb.table-name")
-    String tableName;
+    @Inject
+    CamelContext camelContext;
 
     @Inject
-    ConsumerTemplate consumerTemplate;
-
-    void startup(@Observes StartupEvent event) {
-        /* Hit the consumer URI at application startup so that the consumer starts polling eagerly */
-        consumerTemplate.receiveBody(componentUri(), 1000);
-    }
+    @Named("aws2DdbStreamReceivedEvents")
+    List<Map<String, String>> aws2DdbStreamReceivedEvents;
 
     @Path("/change")
     @GET
     @Produces(MediaType.APPLICATION_JSON)
-    public Map<String, String> change() {
-        Map<String, String> result = new LinkedHashMap<>();
-        Record record = consumerTemplate.receiveBody(componentUri(), 10000, Record.class);
-        if (record == null) {
-            return null;
-        }
-        StreamRecord item = record.dynamodb();
-        result.put("key", item.keys().get("key").s());
-        if (item.hasOldImage()) {
-            result.put("old", item.oldImage().get("value").s());
-        }
-        if (item.hasNewImage()) {
-            result.put("new", item.newImage().get("value").s());
-        }
-        return result;
+    public List<Map<String, String>> change() {
+        return aws2DdbStreamReceivedEvents;
     }
 
-    private String componentUri() {
-        return "aws2-ddbstream://" + tableName;
+    @Path("/clear")
+    @GET
+    public void clear() {
+        aws2DdbStreamReceivedEvents.clear();
+    }
+
+    @GET
+    @Path("/route/{routeId}/{operation}")
+    @Produces(MediaType.TEXT_PLAIN)
+    public String route(@PathParam("routeId") String routeId, @PathParam("operation") String operation) throws Exception {
+        switch (operation) {
+        case "stop":
+            camelContext.getRouteController().stopRoute(routeId);
+            break;
+        case "start":
+            camelContext.getRouteController().startRoute(routeId);
+            break;
+        case "status":
+            return camelContext.getRouteController().getRouteStatus(routeId).name();
+
+        }
+
+        return null;
     }
 
 }

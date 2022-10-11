@@ -20,7 +20,7 @@ import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
-import javax.ws.rs.GET;
+import javax.inject.Named;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
@@ -32,6 +32,7 @@ import org.apache.camel.ProducerTemplate;
 import org.apache.camel.component.mllp.MllpComponent;
 import org.apache.camel.component.mllp.MllpConstants;
 import org.apache.camel.component.mock.MockEndpoint;
+import org.eclipse.microprofile.config.ConfigProvider;
 
 @Path("/mllp")
 @ApplicationScoped
@@ -72,20 +73,21 @@ public class MllpResource {
         mockEndpoint.assertIsSatisfied(5000);
     }
 
-    @Path("/charset/default")
-    @GET
-    @Produces(MediaType.TEXT_PLAIN)
-    public String getDefaultCharset() {
-        return MllpComponent.getDefaultCharset().name();
-    }
-
     @Path("/charset/msh18")
     @POST
     @Produces(MediaType.TEXT_PLAIN)
     public String getWithCharsetFromMsh18(String message) {
-        String mllpHostPort = String.format("mllp:%s:%d", MllpRoutes.MLLP_HOST, MllpRoutes.MLLP_PORT);
+        Integer mllpPort = ConfigProvider.getConfig().getValue("mllp.test.port", Integer.class);
+        String mllpHostPort = String.format("mllp:%s:%d", MllpRoutes.MLLP_HOST, mllpPort);
         Exchange exchange = producerTemplate.request(mllpHostPort, e -> e.getMessage().setBody(message));
         String ack = exchange.getMessage().getHeader(MllpConstants.MLLP_ACKNOWLEDGEMENT_STRING, String.class);
         return ack.split("\r")[0];
+    }
+
+    @Named("mllp")
+    MllpComponent component() {
+        MllpComponent component = new MllpComponent();
+        component.setDefaultCharset("UTF-8");
+        return component;
     }
 }

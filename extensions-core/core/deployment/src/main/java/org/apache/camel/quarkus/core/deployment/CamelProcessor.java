@@ -23,7 +23,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -42,14 +44,21 @@ import io.quarkus.deployment.builditem.ApplicationArchivesBuildItem;
 import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.NativeImageResourceBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
+import io.quarkus.maven.dependency.ArtifactKey;
 import io.quarkus.runtime.RuntimeValue;
 import org.apache.camel.Converter;
 import org.apache.camel.impl.converter.BaseTypeConverterRegistry;
+import org.apache.camel.quarkus.core.CamelCapabilities;
 import org.apache.camel.quarkus.core.CamelConfig;
 import org.apache.camel.quarkus.core.CamelConfigFlags;
 import org.apache.camel.quarkus.core.CamelProducers;
 import org.apache.camel.quarkus.core.CamelRecorder;
 import org.apache.camel.quarkus.core.FastFactoryFinderResolver.Builder;
+import org.apache.camel.quarkus.core.deployment.catalog.BuildTimeCamelCatalog;
+import org.apache.camel.quarkus.core.deployment.catalog.BuildTimeJsonSchemaResolver;
+import org.apache.camel.quarkus.core.deployment.catalog.SchemaResource;
+import org.apache.camel.quarkus.core.deployment.spi.BuildTimeCamelCatalogBuildItem;
+import org.apache.camel.quarkus.core.deployment.spi.CamelComponentNameResolverBuildItem;
 import org.apache.camel.quarkus.core.deployment.spi.CamelFactoryFinderResolverBuildItem;
 import org.apache.camel.quarkus.core.deployment.spi.CamelModelJAXBContextFactoryBuildItem;
 import org.apache.camel.quarkus.core.deployment.spi.CamelModelToXMLDumperBuildItem;
@@ -59,16 +68,17 @@ import org.apache.camel.quarkus.core.deployment.spi.CamelServiceDestination;
 import org.apache.camel.quarkus.core.deployment.spi.CamelServiceFilter;
 import org.apache.camel.quarkus.core.deployment.spi.CamelServiceFilterBuildItem;
 import org.apache.camel.quarkus.core.deployment.spi.CamelServicePatternBuildItem;
-import org.apache.camel.quarkus.core.deployment.spi.CamelStartupStepRecorderBuildItem;
 import org.apache.camel.quarkus.core.deployment.spi.CamelTypeConverterLoaderBuildItem;
 import org.apache.camel.quarkus.core.deployment.spi.CamelTypeConverterRegistryBuildItem;
 import org.apache.camel.quarkus.core.deployment.spi.ContainerBeansBuildItem;
 import org.apache.camel.quarkus.core.deployment.spi.RoutesBuilderClassExcludeBuildItem;
 import org.apache.camel.quarkus.core.deployment.util.CamelSupport;
 import org.apache.camel.quarkus.core.deployment.util.PathFilter;
-import org.apache.camel.quarkus.support.common.CamelCapabilities;
+import org.apache.camel.quarkus.core.util.FileUtils;
 import org.apache.camel.spi.TypeConverterLoader;
 import org.apache.camel.spi.TypeConverterRegistry;
+import org.eclipse.microprofile.config.Config;
+import org.eclipse.microprofile.config.ConfigProvider;
 import org.jboss.jandex.AnnotationTarget;
 import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
@@ -86,6 +96,8 @@ class CamelProcessor {
             "org.apache.camel.builder.RouteBuilder");
     private static final DotName LAMBDA_ROUTE_BUILDER_TYPE = DotName.createSimple(
             "org.apache.camel.builder.LambdaRouteBuilder");
+    private static final DotName LAMBDA_ENDPOINT_ROUTE_BUILDER_TYPE = DotName.createSimple(
+            "org.apache.camel.builder.endpoint.LambdaEndpointRouteBuilder");
     private static final DotName ADVICE_WITH_ROUTE_BUILDER_TYPE = DotName.createSimple(
             "org.apache.camel.builder.AdviceWithRouteBuilder");
     private static final DotName DATA_FORMAT_TYPE = DotName.createSimple(
@@ -102,6 +114,7 @@ class CamelProcessor {
     private static final Set<DotName> UNREMOVABLE_BEANS_TYPES = CamelSupport.setOf(
             ROUTES_BUILDER_TYPE,
             LAMBDA_ROUTE_BUILDER_TYPE,
+            LAMBDA_ENDPOINT_ROUTE_BUILDER_TYPE,
             DATA_FORMAT_TYPE,
             LANGUAGE_TYPE,
             COMPONENT_TYPE,
@@ -161,7 +174,8 @@ class CamelProcessor {
                 "META-INF/services/org/apache/camel/language/*",
                 "META-INF/services/org/apache/camel/dataformat/*",
                 "META-INF/services/org/apache/camel/send-dynamic/*",
-                "META-INF/services/org/apache/camel/urifactory/*"));
+                "META-INF/services/org/apache/camel/urifactory/*",
+                "META-INF/services/org/apache/camel/properties-function/*"));
     }
 
     @BuildStep
@@ -232,7 +246,7 @@ class CamelProcessor {
         final ClassLoader TCCL = Thread.currentThread().getContextClassLoader();
 
         for (ApplicationArchive archive : applicationArchives.getAllApplicationArchives()) {
-            for (Path root : archive.getRootDirs()) {
+            for (Path root : archive.getRootDirectories()) {
                 Path path = root.resolve(BaseTypeConverterRegistry.META_INF_SERVICES_TYPE_CONVERTER_LOADER);
                 if (!Files.isRegularFile(path)) {
                     continue;
@@ -254,8 +268,9 @@ class CamelProcessor {
         Set<String> internalConverters = new HashSet<>();
         //ignore all @converters from org.apache.camel:camel-* dependencies
         for (ApplicationArchive archive : applicationArchives.getAllApplicationArchives()) {
-            if (archive.getArtifactKey() != null && "org.apache.camel".equals(archive.getArtifactKey().getGroupId())
-                    && archive.getArtifactKey().getArtifactId().startsWith("camel-")) {
+            ArtifactKey artifactKey = archive.getKey();
+            if (artifactKey != null && "org.apache.camel".equals(artifactKey.getGroupId())
+                    && artifactKey.getArtifactId().startsWith("camel-")) {
                 internalConverters.addAll(archive.getIndex().getAnnotations(DotName.createSimple(Converter.class.getName()))
                         .stream().filter(a -> a.target().kind() == AnnotationTarget.Kind.CLASS)
                         .map(a -> a.target().asClass().name().toString())
@@ -263,7 +278,7 @@ class CamelProcessor {
             }
         }
 
-        Set<Class> convertersClasses = index
+        Set<Class<?>> convertersClasses = index
                 .getAnnotations(DotName.createSimple(Converter.class.getName()))
                 .stream().filter(a -> a.target().kind() == AnnotationTarget.Kind.CLASS &&
                         (a.value("generateBulkLoader") == null || !a.value("generateBulkLoader").asBoolean()) &&
@@ -321,18 +336,11 @@ class CamelProcessor {
         camelServices.forEach(service -> {
             recorder.factoryFinderResolverEntry(
                     builder,
-                    service.path.toString(),
+                    FileUtils.nixifyPath(service.path),
                     CamelSupport.loadClass(service.type, TCCL));
         });
 
         return new CamelFactoryFinderResolverBuildItem(recorder.factoryFinderResolver(builder));
-    }
-
-    @Overridable
-    @BuildStep
-    @Record(value = ExecutionTime.STATIC_INIT, optional = true)
-    public CamelStartupStepRecorderBuildItem createStartupStepRecorder(CamelRecorder recorder) {
-        return new CamelStartupStepRecorderBuildItem(recorder.newDefaultStartupStepRecorder());
     }
 
     @BuildStep
@@ -349,7 +357,7 @@ class CamelProcessor {
     @BuildStep(onlyIf = { CamelConfigFlags.RoutesDiscoveryEnabled.class })
     public List<CamelRoutesBuilderClassBuildItem> discoverRoutesBuilderClassNames(
             CombinedIndexBuildItem combinedIndex,
-            CamelConfig config,
+            CamelConfig camelConfig,
             List<RoutesBuilderClassExcludeBuildItem> routesBuilderClassExcludes) {
 
         final IndexView index = combinedIndex.getIndex();
@@ -359,13 +367,35 @@ class CamelProcessor {
         allKnownImplementors.addAll(index.getAllKnownSubclasses(ROUTE_BUILDER_TYPE));
         allKnownImplementors.addAll(index.getAllKnownSubclasses(ADVICE_WITH_ROUTE_BUILDER_TYPE));
 
+        Config config = ConfigProvider.getConfig();
+        Optional<List<String>> camelMainRoutesExclude = config.getOptionalValues("camel.main.javaRoutesExcludePattern",
+                String.class);
+        Optional<List<String>> camelMainRoutesInclude = config.getOptionalValues("camel.main.javaRoutesIncludePattern",
+                String.class);
+
+        camelMainRoutesExclude.ifPresent(excludes -> {
+            if (camelConfig.routesDiscovery.excludePatterns.isPresent()) {
+                camelConfig.routesDiscovery.excludePatterns.get().addAll(excludes);
+            } else {
+                camelConfig.routesDiscovery.excludePatterns = Optional.of(excludes);
+            }
+        });
+
+        camelMainRoutesInclude.ifPresent(includes -> {
+            if (camelConfig.routesDiscovery.includePatterns.isPresent()) {
+                camelConfig.routesDiscovery.includePatterns.get().addAll(includes);
+            } else {
+                camelConfig.routesDiscovery.includePatterns = Optional.of(includes);
+            }
+        });
+
         final Predicate<DotName> pathFilter = new PathFilter.Builder()
                 .exclude(
                         routesBuilderClassExcludes.stream()
                                 .map(RoutesBuilderClassExcludeBuildItem::getPattern)
                                 .collect(Collectors.toList()))
-                .exclude(config.routesDiscovery.excludePatterns)
-                .include(config.routesDiscovery.includePatterns)
+                .exclude(camelConfig.routesDiscovery.excludePatterns)
+                .include(camelConfig.routesDiscovery.includePatterns)
                 .build().asDotNamePredicate();
 
         return allKnownImplementors
@@ -376,6 +406,21 @@ class CamelProcessor {
                 .filter(pathFilter)
                 .map(CamelRoutesBuilderClassBuildItem::new)
                 .collect(Collectors.toList());
+    }
+
+    @Record(ExecutionTime.STATIC_INIT)
+    @BuildStep
+    CamelComponentNameResolverBuildItem componentNameResolver(
+            BuildTimeCamelCatalogBuildItem camelCatalog,
+            CamelRecorder recorder) {
+        BuildTimeCamelCatalog catalog = camelCatalog.getCatalog();
+        BuildTimeJsonSchemaResolver jSonSchemaResolver = catalog.getJSonSchemaResolver();
+        Set<String> componentNames = jSonSchemaResolver.getSchemaResources()
+                .stream()
+                .filter(resource -> resource.getType().equals("component"))
+                .map(SchemaResource::getName)
+                .collect(Collectors.collectingAndThen(Collectors.toUnmodifiableSet(), TreeSet::new));
+        return new CamelComponentNameResolverBuildItem(recorder.createComponentNameResolver(componentNames));
     }
 
     @BuildStep

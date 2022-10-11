@@ -20,19 +20,40 @@ import java.io.InputStream;
 
 import javax.inject.Named;
 
+import io.quarkus.runtime.annotations.RegisterForReflection;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.camel.builder.RouteBuilder;
+import org.apache.camel.http.base.HttpOperationFailedException;
 import org.apache.camel.support.jsse.KeyManagersParameters;
 import org.apache.camel.support.jsse.KeyStoreParameters;
 import org.apache.camel.support.jsse.SSLContextParameters;
 import org.apache.camel.support.jsse.TrustManagersParameters;
 
+@RegisterForReflection(targets = IllegalStateException.class, serialization = true)
 public class HttpRoute extends RouteBuilder {
     @Override
     public void configure() {
         from("netty-http:http://0.0.0.0:{{camel.netty-http.test-port}}/test/server/hello")
                 .transform().constant("Netty Hello World");
+
+        from("netty-http:http://0.0.0.0:{{camel.netty-http.test-port}}/test/server/serialized/exception?transferException=true")
+                .throwException(new IllegalStateException("Forced exception"));
+
+        from("netty-http:http://0.0.0.0:{{camel.netty-http.compression-test-port}}/compressed?compression=true")
+                .transform().constant("Netty Hello World Compressed");
+
+        from("direct:httpOperationFailedException")
+                .onException(HttpOperationFailedException.class)
+                .handled(true)
+                .setBody().constant("Handled HttpOperationFailedException")
+                .to("seda:dlq")
+                .end()
+                .to("http://localhost:{{camel.netty-http.test-port}}/test/server/error");
+
+        from("netty-http:http://0.0.0.0:{{camel.netty-http.test-port}}/test/server/error")
+                .removeHeaders("CamelHttp*")
+                .setHeader(Exchange.HTTP_RESPONSE_CODE).constant(500);
 
         from("netty-http:http://0.0.0.0:{{camel.netty-http.https-test-port}}/countries/cz?ssl=true&sslContextParameters=#sslContextParameters")
                 .process(new Processor() {
@@ -44,6 +65,18 @@ public class HttpRoute extends RouteBuilder {
                         }
                     }
                 });
+
+        from("netty-http:http://0.0.0.0:{{camel.netty-http.test-port}}/test/server/serviceCall")
+                .serviceCall()
+                .name("myService/test/server/myService")
+                .component("netty-http")
+                .staticServiceDiscovery()
+                .servers("myService@localhost:{{camel.netty-http.test-port}}")
+                .end();
+
+        from("netty-http:http://0.0.0.0:{{camel.netty-http.test-port}}/test/server/myService")
+                .transform().constant("Hello from myService");
+
     }
 
     @Named

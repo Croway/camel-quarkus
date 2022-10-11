@@ -38,8 +38,7 @@ public class SplunkTestResource implements QuarkusTestResourceLifecycleManager {
 
         try {
             container = new GenericContainer("splunk/splunk:8.1.2")
-                    .withExposedPorts(REMOTE_PORT)
-                    .withExposedPorts(SplunkResource.LOCAL_TCP_PORT)
+                    .withExposedPorts(REMOTE_PORT, SplunkResource.LOCAL_TCP_PORT)
                     .withEnv("SPLUNK_START_ARGS", "--accept-license")
                     .withEnv("SPLUNK_PASSWORD", "changeit")
                     .withEnv("SPLUNK_LICENSE_URI", "Free")
@@ -53,6 +52,8 @@ public class SplunkTestResource implements QuarkusTestResourceLifecycleManager {
             container.execInContainer("sudo", "sed", "-i", "s/allowRemoteLogin=requireSetPassword/allowRemoteLogin=always/",
                     "/opt/splunk/etc/system/default/server.conf");
             container.execInContainer("sudo", "sed", "-i", "s/enableSplunkdSSL = true/enableSplunkdSSL = false/",
+                    "/opt/splunk/etc/system/default/server.conf");
+            container.execInContainer("sudo", "sed", "-i", "s/minFreeSpace = 5000/minFreeSpace = 100/",
                     "/opt/splunk/etc/system/default/server.conf");
 
             container.execInContainer("sudo", "microdnf", "--nodocs", "update", "tzdata");//install tzdata package so we can specify tz other than UTC

@@ -25,9 +25,18 @@ class BeanValidatorTest {
 
     @Test
     public void test() {
-        RestAssured.get("/bean-validator/get/honda/123").then().statusCode(400);
-
-        RestAssured.get("/bean-validator/get/honda/DD-AB-123").then().statusCode(200);
+        //forced optional check
+        RestAssured.get("/bean-validator/get/optional/honda/123").then().statusCode(400);
+        //forced optional check
+        RestAssured.get("/bean-validator/get/optional/honda/DD-AB-123").then().statusCode(200);
+        //not-forced optional check
+        RestAssured.get("/bean-validator/get/start/honda/123").then().statusCode(200);
+        //not-forced optional check
+        RestAssured.get("/bean-validator/get/start/honda/DD-AB-12").then().statusCode(200);
+        //forced null-check
+        RestAssured.get("/bean-validator/get/start/honda").then().statusCode(400);
+        //Null-check not in optional group and null is valid for minSize
+        RestAssured.get("/bean-validator/get/optional/honda").then().statusCode(200);
     }
 
 }

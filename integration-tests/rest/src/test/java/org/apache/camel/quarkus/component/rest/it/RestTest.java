@@ -16,18 +16,27 @@
  */
 package org.apache.camel.quarkus.component.rest.it;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
+import io.restassured.response.ValidatableResponse;
 import org.apache.camel.component.platform.http.PlatformHttpConstants;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @QuarkusTest
 class RestTest {
+    private static final Person person = new Person("John", "Doe", 64);
 
     @Test
     public void inspectConfiguration() {
@@ -38,21 +47,27 @@ class RestTest {
                 .body("component", is(PlatformHttpConstants.PLATFORM_HTTP_COMPONENT_NAME));
     }
 
-    @Test
-    public void rest() {
-        RestAssured.get("/rest/get")
+    @ParameterizedTest
+    @ValueSource(strings = { "DELETE", "GET", "HEAD", "PATCH", "POST", "PUT" })
+    public void rest(String method) {
+        String body = method.matches("PATCH|POST|PUT") ? method : "";
+
+        ValidatableResponse response = RestAssured.given()
+                .body(body)
+                .request(method, "/rest")
                 .then()
                 .header("Access-Control-Allow-Headers", matchesPattern(".*Access-Control.*"))
                 .header("Access-Control-Allow-Methods", matchesPattern("GET, POST"))
-                .header("Access-Control-Allow-Credentials", equalTo("true"))
-                .body(equalTo("GET: /rest/get"));
+                .header("Access-Control-Allow-Credentials", equalTo("true"));
 
-        RestAssured.given()
-                .contentType(ContentType.TEXT)
-                .post("/rest/post")
-                .then()
-                .statusCode(200)
-                .body(equalTo("POST: /rest/post"));
+        if (method.equals("HEAD")) {
+            // Response body is ignored for HEAD so verify response headers
+            response.statusCode(204);
+            response.header("Content-Type", ContentType.TEXT.toString());
+        } else {
+            response.statusCode(200);
+            response.body(is(method + ": /rest"));
+        }
     }
 
     @Test
@@ -69,25 +84,26 @@ class RestTest {
     public void requestValidation() {
         RestAssured.given()
                 .contentType(ContentType.TEXT)
-                .header("messageEnd", "World")
+                .body("Camel Quarkus")
+                .header("messageEnd", "REST")
                 .post("/rest/validation")
                 .then()
                 .statusCode(400)
                 .body(equalTo("Some of the required query parameters are missing."));
 
-        // TODO: Enable this - https://issues.apache.org/jira/browse/CAMEL-16560
-        //        RestAssured.given()
-        //                .contentType(ContentType.TEXT)
-        //                .queryParam("messageStart", "Hello")
-        //                .post("/rest/validation")
-        //                .then()
-        //                .statusCode(400)
-        //                .body(equalTo("The request body is missing."));
-        //
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .queryParam("messageStart", "Hello")
+                .header("messageEnd", "REST")
+                .post("/rest/validation")
+                .then()
+                .statusCode(400)
+                .body(equalTo("The request body is missing."));
 
         RestAssured.given()
                 .contentType(ContentType.TEXT)
                 .queryParam("messageStart", "Hello")
+                .body("Camel Quarkus")
                 .post("/rest/validation")
                 .then()
                 .statusCode(400)
@@ -96,20 +112,16 @@ class RestTest {
         RestAssured.given()
                 .contentType(ContentType.TEXT)
                 .queryParam("messageStart", "Hello")
-                .header("messageEnd", "World")
+                .body("Camel Quarkus")
+                .header("messageEnd", "REST")
                 .post("/rest/validation")
                 .then()
                 .statusCode(200)
-                .body(equalTo("Hello World"));
+                .body(equalTo("Hello Camel Quarkus REST"));
     }
 
     @Test
     public void jsonBinding() {
-        Person person = new Person();
-        person.setFirstName("John");
-        person.setLastName("Doe");
-        person.setAge(64);
-
         String result = String.format(
                 "Name: %s %s, Age: %d",
                 person.getFirstName(),
@@ -126,12 +138,20 @@ class RestTest {
     }
 
     @Test
-    public void xmlBinding() {
-        Person person = new Person();
-        person.setFirstName("John");
-        person.setLastName("Doe");
-        person.setAge(64);
+    public void jsonBindingProducer() {
+        Person respondPerson = RestAssured.given()
+                .queryParam("port", RestAssured.port)
+                .get("/rest/producer/binding/mode/json")
+                .then()
+                .statusCode(200)
+                .extract()
+                .body()
+                .as(Person.class);
+        assertEquals(respondPerson, person);
+    }
 
+    @Test
+    public void xmlBinding() {
         String result = String.format(
                 "Name: %s %s, Age: %d",
                 person.getFirstName(),
@@ -148,6 +168,19 @@ class RestTest {
     }
 
     @Test
+    public void xmlBindingProducer() {
+        Person respondPerson = RestAssured.given()
+                .queryParam("port", RestAssured.port)
+                .get("/rest/producer/binding/mode/xml")
+                .then()
+                .statusCode(200)
+                .extract()
+                .body()
+                .as(Person.class);
+        assertEquals(respondPerson, person);
+    }
+
+    @Test
     public void testRestProducer() {
         RestAssured.given()
                 .queryParam("port", RestAssured.port)
@@ -158,7 +191,7 @@ class RestTest {
     }
 
     @Test
-    public void lightweight() throws Throwable {
+    public void lightweight() {
         RestAssured.when()
                 .get("/rest/inspect/camel-context/lightweight")
                 .then()
@@ -166,4 +199,51 @@ class RestTest {
                 .body(is("true"));
     }
 
+    @Test
+    public void restLog() {
+        String message = "Camel Quarkus Platform HTTP";
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body(message)
+                .when()
+                .post("/rest/log")
+                .then()
+                .statusCode(200)
+                .body(is(message));
+    }
+
+    @Test
+    public void customVerb() {
+        RestAssured.given()
+                .head("/rest/custom/verb")
+                .then()
+                .statusCode(204)
+                .header("Content-Type", is(ContentType.TEXT.toString()));
+    }
+
+    @Test
+    public void multiPartUpload() throws IOException {
+        Path txtFile = Files.createTempFile("multipartUpload", ".txt");
+        Path csvFile = Files.createTempFile("multipartUpload", ".csv");
+
+        try {
+            RestAssured.given()
+                    .multiPart(txtFile.toFile())
+                    .post("/rest/multipart/upload")
+                    .then()
+                    .statusCode(200)
+                    .body(is("1"));
+
+            // fileNameExtWhitelist config will only allow the txt file extension
+            RestAssured.given()
+                    .multiPart(csvFile.toFile())
+                    .post("/rest/multipart/upload")
+                    .then()
+                    .statusCode(200)
+                    .body(is("0"));
+        } finally {
+            Files.deleteIfExists(txtFile);
+            Files.deleteIfExists(csvFile);
+        }
+    }
 }

@@ -48,14 +48,14 @@ public class JtaRoutes extends RouteBuilder {
         from("direct:not_supported")
                 .transacted("PROPAGATION_NOT_SUPPORTED").transform().constant("not_supported");
 
-        from("direct:transaction")
+        from("direct:jdbc")
                 .transacted()
                 .setHeader("message", body())
-                .to("jms:queue:txTest?connectionFactory=#xaConnectionFactory&disableReplyTo=true")
-                .transform().simple("insert into example(message) values ('${body}')")
+                .to("jms:queue:jdbc?connectionFactory=#xaConnectionFactory&disableReplyTo=true")
+                .transform().simple("insert into example(message, origin) values ('${body}', 'jdbc')")
                 .to("jdbc:camel-ds?resetAutoCommit=false")
                 .choice()
-                .when(header("message").startsWith("fail"))
+                .when(header("message").startsWith("rollback"))
                 .log("Failing forever with exception")
                 .process(x -> {
                     throw new RuntimeException("Fail");
@@ -63,8 +63,56 @@ public class JtaRoutes extends RouteBuilder {
                 .otherwise()
                 .transform().simple("${header.message} added")
                 .endChoice();
+        from("jms:queue:jdbc?connectionFactory=#xaConnectionFactory")
+                .to("mock:jdbc");
 
-        from("jms:queue:txTest?connectionFactory=#xaConnectionFactory")
-                .to("mock:txResult");
+        from("direct:jdbcRollback")
+                .transacted()
+                .setHeader("message", body())
+                .to("jms:queue:jdbcRollback?connectionFactory=#xaConnectionFactory&disableReplyTo=true")
+                .transform().simple("insert into example(message, origin) values ('${body}', 'jdbcRollback')")
+                .to("jdbc:default?resetAutoCommit=false")
+                .choice()
+                .when(header("message").startsWith("rollback"))
+                .log("Rolling back after rollback message")
+                .rollback()
+                .otherwise()
+                .transform().simple("${header.message} added")
+                .endChoice();
+        from("jms:queue:jdbcRollback?connectionFactory=#xaConnectionFactory")
+                .to("mock:jdbcRollback");
+
+        from("direct:sqltx")
+                .transacted()
+                .setHeader("message", body())
+                .to("jms:queue:sqltx?connectionFactory=#xaConnectionFactory&disableReplyTo=true")
+                .to("sql:insert into example(message, origin) values (:#message, 'sqltx')")
+                .choice()
+                .when(header("message").startsWith("rollback"))
+                .log("Failing forever with exception")
+                .process(x -> {
+                    throw new RuntimeException("Fail");
+                })
+                .otherwise()
+                .transform().simple("${header.message} added")
+                .endChoice();
+        from("jms:queue:sqltx?connectionFactory=#xaConnectionFactory")
+                .to("mock:sqltx");
+
+        from("direct:sqltxRollback")
+                .transacted()
+                .setHeader("message", body())
+                .to("jms:queue:sqltxRollback?connectionFactory=#xaConnectionFactory&disableReplyTo=true")
+                .to("sql:insert into example(message, origin) values (:#message, 'sqltxRollback')")
+                .choice()
+                .when(header("message").startsWith("rollback"))
+                .log("Rolling back after rollback message")
+                .rollback()
+                .otherwise()
+                .transform().simple("${header.message} added")
+                .endChoice();
+        from("jms:queue:sqltxRollback?connectionFactory=#xaConnectionFactory")
+                .to("mock:sqltxRollback");
+
     }
 }

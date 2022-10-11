@@ -35,7 +35,7 @@ import org.testcontainers.containers.wait.strategy.Wait;
 
 public class AzureStorageTestResource implements QuarkusTestResourceLifecycleManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(AzureStorageTestResource.class);
-    private static final String AZURITE_IMAGE = "mcr.microsoft.com/azure-storage/azurite:3.10.0";
+    private static final String AZURITE_IMAGE = "mcr.microsoft.com/azure-storage/azurite:3.19.0";
 
     public enum Service {
         blob(10000),
@@ -103,7 +103,7 @@ public class AzureStorageTestResource implements QuarkusTestResourceLifecycleMan
                         .forEach(s -> {
                             result.put(
                                     "azure." + s.name() + ".service.url",
-                                    "http://" + container.getContainerIpAddress() + ":"
+                                    "http://" + container.getHost() + ":"
                                             + (s.azuritePort >= 0 ? container.getMappedPort(s.azuritePort) : s.azuritePort)
                                             + "/"
                                             + azureStorageAccountName);

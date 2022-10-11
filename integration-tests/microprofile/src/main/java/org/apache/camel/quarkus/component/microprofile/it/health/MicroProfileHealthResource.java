@@ -18,12 +18,13 @@ package org.apache.camel.quarkus.component.microprofile.it.health;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
-import javax.ws.rs.GET;
+import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
+import javax.ws.rs.QueryParam;
 
 import org.apache.camel.CamelContext;
-import org.apache.camel.spi.Registry;
+import org.apache.camel.health.HealthCheckRegistry;
 
 @Path("/microprofile-health")
 @ApplicationScoped
@@ -32,24 +33,30 @@ public class MicroProfileHealthResource {
     @Inject
     CamelContext camelContext;
 
-    @Path("/checks/failing/{enabled}")
-    @GET
-    public void toggleFailingHealthCheck(@PathParam("enabled") boolean enabled) {
-        Registry registry = camelContext.getRegistry();
-        FailingHealthCheck failingHealthCheck = registry.lookupByNameAndType(FailingHealthCheck.class.getSimpleName(),
-                FailingHealthCheck.class);
-        failingHealthCheck.getConfiguration().setEnabled(enabled);
-    }
-
     @Path("/route/{routeId}/stop")
-    @GET
+    @POST
     public void stopCamelRoute(@PathParam("routeId") String routeId) throws Exception {
         camelContext.getRouteController().stopRoute(routeId);
     }
 
     @Path("/route/{routeId}/start")
-    @GET
+    @POST
     public void startCamelRoute(@PathParam("routeId") String routeId) throws Exception {
         camelContext.getRouteController().startRoute(routeId);
+    }
+
+    @Path("/{healthCheckId}")
+    @POST
+    public void healthCheckEnabled(@PathParam("healthCheckId") String healthCheckId,
+            @QueryParam("healthCheckEnabled") boolean isHealthCheckEnabled) {
+        HealthCheckRegistry registry = camelContext.getExtension(HealthCheckRegistry.class);
+        registry.getCheck(healthCheckId).ifPresent(healthCheck -> {
+            healthCheck.setEnabled(isHealthCheckEnabled);
+            if (isHealthCheckEnabled) {
+                registry.register(healthCheck);
+            } else {
+                registry.unregister(healthCheck);
+            }
+        });
     }
 }

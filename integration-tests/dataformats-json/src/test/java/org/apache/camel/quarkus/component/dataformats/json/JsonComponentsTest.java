@@ -29,6 +29,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -50,12 +51,14 @@ public class JsonComponentsTest {
                 .queryParam("json-component", jsonComponent)
                 .post("/dataformats-json/out")
                 .then()
-                .body(equalTo("{\"dummy_string\":\"value1\"}"));
+                .body("dummy_string", equalTo("value1"))
+                .body("date", containsString("1970"));
         RestAssured.given()
                 .queryParam("json-component", jsonComponent)
                 .post("/dataformats-json/out")
                 .then()
-                .body(equalTo("{\"dummy_string\":\"value2\"}"));
+                .body("dummy_string", equalTo("value2"))
+                .body("date", containsString("1970"));
     }
 
     @ParameterizedTest
@@ -104,7 +107,7 @@ public class JsonComponentsTest {
 
     @Test
     void jacksonXml() {
-        final String xml = "<PojoA>\n  <name>Joe</name>\n</PojoA>\n";
+        final String xml = "<PojoA><name>Joe</name></PojoA>";
         final String json = JsonbBuilder.create().toJson(new PojoA("Joe"));
         RestAssured.given()
                 .contentType(ContentType.JSON)
@@ -112,7 +115,7 @@ public class JsonComponentsTest {
                 .post("/dataformats-json/jacksonxml/marshal")
                 .then()
                 .statusCode(200)
-                .body(equalTo(xml));
+                .body("PojoA.name", equalTo("Joe"));
 
         RestAssured.given()
                 .contentType("text/xml")
@@ -121,5 +124,7 @@ public class JsonComponentsTest {
                 .then()
                 .statusCode(200)
                 .body(equalTo(json));
+
     }
+
 }

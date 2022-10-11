@@ -21,30 +21,18 @@
     <parent>
         <groupId>org.apache.camel.quarkus</groupId>
         <artifactId>camel-quarkus-core-parent</artifactId>
-        <version>1.9.0-SNAPSHOT</version>
+        <version>2.14.0-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>camel-quarkus-core</artifactId>
     <name>Camel Quarkus :: Core :: Runtime</name>
-    <description>Camel core functionality and basic Camel languages: Constant, ExchangeProperty, Header, Ref, Ref, Simple and Tokeinze</description>
+    <description>Camel core functionality and basic Camel languages: Constant, ExchangeProperty, Header, Ref, Simple and Tokenize</description>
 
     <properties>
         <camel.quarkus.jvmSince>0.0.1</camel.quarkus.jvmSince>
         <camel.quarkus.nativeSince>0.0.1</camel.quarkus.nativeSince>
     </properties>
-
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>org.apache.camel.quarkus</groupId>
-                <artifactId>camel-quarkus-bom</artifactId>
-                <version>${project.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
 
     <dependencies>
         <dependency>
@@ -54,10 +42,6 @@
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-arc</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.camel.quarkus</groupId>
-            <artifactId>camel-quarkus-support-common</artifactId>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
@@ -100,6 +84,10 @@
             <groupId>org.apache.camel</groupId>
             <artifactId>camel-microprofile-config</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.jboss.spec.javax.xml.bind</groupId>
+            <artifactId>jboss-jaxb-api_2.3_spec</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.graalvm.nativeimage</groupId>
@@ -112,14 +100,10 @@
         <plugins>
             <plugin>
                 <groupId>io.quarkus</groupId>
-                <artifactId>quarkus-bootstrap-maven-plugin</artifactId>
+                <artifactId>quarkus-extension-maven-plugin</artifactId>
                 <configuration>
                     <capabilities>
                         <provides>org.apache.camel</provides>
-                        <providesIf>
-                            <positive>org.apache.camel.quarkus.core.deployment.main.spi.CamelMainEnabled</positive>
-                            <name>org.apache.camel.main</name>
-                        </providesIf>
                     </capabilities>
                 </configuration>
             </plugin>

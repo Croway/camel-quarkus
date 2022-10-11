@@ -18,22 +18,21 @@ package org.apache.camel.quarkus.component.grpc.deployment;
 
 import java.lang.reflect.Modifier;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
+
+import javax.enterprise.context.Dependent;
 
 import io.grpc.BindableService;
 import io.grpc.stub.AbstractAsyncStub;
 import io.grpc.stub.AbstractBlockingStub;
 import io.grpc.stub.AbstractFutureStub;
+import io.grpc.stub.AbstractStub;
 import io.grpc.stub.StreamObserver;
 import io.quarkus.arc.deployment.AdditionalBeanBuildItem;
 import io.quarkus.arc.deployment.GeneratedBeanBuildItem;
 import io.quarkus.arc.deployment.GeneratedBeanGizmoAdaptor;
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
-import io.quarkus.deployment.annotations.ExecutionTime;
-import io.quarkus.deployment.annotations.Record;
 import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
 import io.quarkus.deployment.builditem.FeatureBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
@@ -42,12 +41,7 @@ import io.quarkus.gizmo.FieldCreator;
 import io.quarkus.gizmo.MethodCreator;
 import io.quarkus.gizmo.MethodDescriptor;
 import io.quarkus.gizmo.ResultHandle;
-import io.quarkus.grpc.GrpcService;
-import io.quarkus.grpc.deployment.BindableServiceBuildItem;
-import org.apache.camel.component.grpc.GrpcComponent;
 import org.apache.camel.component.grpc.server.GrpcMethodHandler;
-import org.apache.camel.quarkus.core.deployment.spi.CamelBeanBuildItem;
-import org.apache.camel.quarkus.grpc.runtime.CamelGrpcRecorder;
 import org.apache.camel.quarkus.grpc.runtime.CamelQuarkusBindableService;
 import org.apache.camel.quarkus.grpc.runtime.QuarkusBindableServiceFactory;
 import org.jboss.jandex.ClassInfo;
@@ -82,20 +76,7 @@ class GrpcProcessor {
                     .map(classInfo -> new ReflectiveClassBuildItem(true, false, classInfo.name().toString()))
                     .forEach(reflectiveClass::produce);
         }
-    }
-
-    @BuildStep
-    void createBindableServiceBeans(
-            BuildProducer<GeneratedBeanBuildItem> generatedBean,
-            BuildProducer<ReflectiveClassBuildItem> reflectiveClass,
-            BuildProducer<BindableServiceBuildItem> bindableService,
-            CombinedIndexBuildItem combinedIndexBuildItem) {
-
-        Set<String> services = generateBindableServiceBeans(generatedBean, reflectiveClass, combinedIndexBuildItem.getIndex());
-        services.stream()
-                .map(DotName::createSimple)
-                .map(BindableServiceBuildItem::new)
-                .forEach(bindableService::produce);
+        reflectiveClass.produce(new ReflectiveClassBuildItem(true, false, AbstractStub.class.getName()));
     }
 
     @BuildStep
@@ -104,17 +85,12 @@ class GrpcProcessor {
     }
 
     @BuildStep
-    @Record(ExecutionTime.STATIC_INIT)
-    CamelBeanBuildItem createGrpcComponent(CamelGrpcRecorder recorder) {
-        return new CamelBeanBuildItem(
-                "grpc",
-                GrpcComponent.class.getName(),
-                recorder.createGrpcComponent());
-    }
+    void createBindableServiceBeans(
+            BuildProducer<GeneratedBeanBuildItem> generatedBean,
+            BuildProducer<ReflectiveClassBuildItem> reflectiveClass,
+            CombinedIndexBuildItem combinedIndexBuildItem) {
 
-    private Set<String> generateBindableServiceBeans(BuildProducer<GeneratedBeanBuildItem> generatedBean,
-            BuildProducer<ReflectiveClassBuildItem> reflectiveClass, IndexView index) {
-        Set<String> generatedBindableServiceClassNames = new HashSet<>();
+        IndexView index = combinedIndexBuildItem.getIndex();
         Collection<ClassInfo> bindableServiceImpls = index.getAllKnownImplementors(BINDABLE_SERVICE_DOT_NAME);
 
         // Generate implementation classes from any abstract gRPC BindableService implementations included in the application archive
@@ -134,7 +110,6 @@ class GrpcProcessor {
 
             String superClassName = service.name().toString();
             String generatedClassName = superClassName + "QuarkusMethodHandler";
-            generatedBindableServiceClassNames.add(generatedClassName);
 
             // Register the service classes for reflection
             reflectiveClass.produce(new ReflectiveClassBuildItem(true, false, service.name().toString()));
@@ -148,7 +123,7 @@ class GrpcProcessor {
                     .interfaces(CamelQuarkusBindableService.class)
                     .build()) {
 
-                classCreator.addAnnotation(GrpcService.class);
+                classCreator.addAnnotation(Dependent.class);
 
                 FieldCreator serverMethodHandler = classCreator
                         .getFieldCreator("methodHandler", GrpcMethodHandler.class.getName())
@@ -210,8 +185,6 @@ class GrpcProcessor {
                 }
             }
         }
-
-        return generatedBindableServiceClassNames;
     }
 
     private boolean isCandidateServiceMethod(MethodInfo method) {

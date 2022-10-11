@@ -16,11 +16,14 @@
  */
 package org.apache.camel.quarkus.core.deployment.main;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import io.quarkus.arc.deployment.AdditionalBeanBuildItem;
 import io.quarkus.arc.deployment.BeanContainerBuildItem;
+import io.quarkus.arc.deployment.BeanDiscoveryFinishedBuildItem;
 import io.quarkus.arc.deployment.SyntheticBeansRuntimeInitBuildItem;
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
@@ -33,11 +36,12 @@ import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
 import io.quarkus.runtime.RuntimeValue;
 import io.quarkus.runtime.annotations.QuarkusMain;
 import org.apache.camel.CamelContext;
+import org.apache.camel.main.RoutesCollector;
 import org.apache.camel.quarkus.core.CamelConfig;
 import org.apache.camel.quarkus.core.CamelRecorder;
 import org.apache.camel.quarkus.core.CamelRuntime;
+import org.apache.camel.quarkus.core.deployment.CamelContextProcessor.EventBridgeEnabled;
 import org.apache.camel.quarkus.core.deployment.main.spi.CamelMainBuildItem;
-import org.apache.camel.quarkus.core.deployment.main.spi.CamelMainEnabled;
 import org.apache.camel.quarkus.core.deployment.main.spi.CamelMainListenerBuildItem;
 import org.apache.camel.quarkus.core.deployment.main.spi.CamelRoutesCollectorBuildItem;
 import org.apache.camel.quarkus.core.deployment.spi.CamelContextBuildItem;
@@ -45,8 +49,6 @@ import org.apache.camel.quarkus.core.deployment.spi.CamelRoutesBuilderClassBuild
 import org.apache.camel.quarkus.core.deployment.spi.CamelRoutesLoaderBuildItems;
 import org.apache.camel.quarkus.core.deployment.spi.CamelRuntimeBuildItem;
 import org.apache.camel.quarkus.core.deployment.spi.CamelRuntimeTaskBuildItem;
-import org.apache.camel.quarkus.core.deployment.spi.CamelServiceDestination;
-import org.apache.camel.quarkus.core.deployment.spi.CamelServicePatternBuildItem;
 import org.apache.camel.quarkus.core.deployment.spi.ContainerBeansBuildItem;
 import org.apache.camel.quarkus.core.deployment.spi.RuntimeCamelContextCustomizerBuildItem;
 import org.apache.camel.quarkus.main.CamelMain;
@@ -59,12 +61,12 @@ import org.jboss.jandex.IndexView;
 
 public class CamelMainProcessor {
 
-    @BuildStep(onlyIf = CamelMainEnabled.class)
+    @BuildStep
     void unremovableBeans(BuildProducer<AdditionalBeanBuildItem> beanProducer) {
         beanProducer.produce(AdditionalBeanBuildItem.unremovableOf(CamelMainProducers.class));
     }
 
-    @BuildStep(onlyIf = CamelMainEnabled.class)
+    @BuildStep
     @Record(value = ExecutionTime.STATIC_INIT, optional = true)
     public CamelRoutesLoaderBuildItems.Registry routesLoader(CamelConfig config, CamelRecorder recorder) {
         return config.routesDiscovery.enabled
@@ -73,13 +75,16 @@ public class CamelMainProcessor {
     }
 
     @Overridable
-    @BuildStep(onlyIf = CamelMainEnabled.class)
+    @BuildStep
     @Record(value = ExecutionTime.STATIC_INIT, optional = true)
     public CamelRoutesCollectorBuildItem routesCollector(
             CamelMainRecorder recorder,
-            CamelRoutesLoaderBuildItems.Registry registryRoutesLoader) {
+            CamelRoutesLoaderBuildItems.Registry registryRoutesLoader,
+            CamelConfig config) {
 
-        return new CamelRoutesCollectorBuildItem(recorder.newRoutesCollector(registryRoutesLoader.getLoader()));
+        RuntimeValue<RoutesCollector> routesCollector = recorder.newRoutesCollector(registryRoutesLoader.getLoader(),
+                config.routesDiscovery.excludePatterns, config.routesDiscovery.includePatterns);
+        return new CamelRoutesCollectorBuildItem(routesCollector);
     }
 
     /**
@@ -96,7 +101,7 @@ public class CamelMainProcessor {
      * @return                      a build item holding a {@link CamelMain} instance.
      */
     @Record(ExecutionTime.STATIC_INIT)
-    @BuildStep(onlyIf = CamelMainEnabled.class)
+    @BuildStep
     CamelMainBuildItem main(
             BeanContainerBuildItem beanContainer,
             ContainerBeansBuildItem containerBeans,
@@ -150,17 +155,17 @@ public class CamelMainProcessor {
      * @param  beanContainer   a reference to a fully initialized CDI bean container
      * @param  recorder        the recorder.
      * @param  main            a reference to a {@link CamelMain}.
-     * @param  customizers     a list of {@link org.apache.camel.quarkus.core.CamelContextCustomizer} that will be
+     * @param  customizers     a list of {@link org.apache.camel.spi.CamelContextCustomizer} that will be
      *                         executed before starting the {@link CamelContext} at {@link ExecutionTime#RUNTIME_INIT}.
      * @param  runtimeTasks    a placeholder to ensure all the runtime task are properly are done.
      * @param  camelMainConfig a {@link CamelMainConfig}
      * @return                 a build item holding a {@link CamelRuntime} instance.
      */
-    @BuildStep(onlyIf = CamelMainEnabled.class)
-    @Record(value = ExecutionTime.RUNTIME_INIT, optional = true)
+    @BuildStep
+    @Record(value = ExecutionTime.RUNTIME_INIT)
     /*
      * @Consume(SyntheticBeansRuntimeInitBuildItem.class) makes sure that camel-main starts after the ArC container is
-     * fully initialized. This is required as under the hoods the camel registry may look-up beans form the
+     * fully initialized. This is required as under the hoods the camel registry may look-up beans from the
      * container thus we need it to be fully initialized to avoid unexpected behaviors.
      */
     @Consume(SyntheticBeansRuntimeInitBuildItem.class)
@@ -191,17 +196,35 @@ public class CamelMainProcessor {
                 index.getIndex().getAnnotations(DotName.createSimple(QuarkusMain.class.getName())).isEmpty());
     }
 
-    @BuildStep(onlyIf = CamelMainEnabled.class)
+    /**
+     * Registers Camel Main CDI event bridges if quarkus.camel.event-bridge.enabled=true and if
+     * the relevant events have CDI observers configured for them.
+     *
+     * @param beanDiscovery build item containing the results of bean discovery
+     * @param main          build item containing the CamelMain instance
+     * @param recorder      the CamelContext recorder instance
+     */
+    @Record(ExecutionTime.STATIC_INIT)
+    @BuildStep(onlyIf = EventBridgeEnabled.class)
+    public void registerCamelMainEventBridge(
+            BeanDiscoveryFinishedBuildItem beanDiscovery,
+            CamelMainBuildItem main,
+            CamelMainRecorder recorder) {
+
+        Set<String> observedMainEvents = beanDiscovery.getObservers()
+                .stream()
+                .map(observerInfo -> observerInfo.getObservedType().name().toString())
+                .filter(observedType -> observedType.startsWith("org.apache.camel.quarkus.main.events"))
+                .collect(Collectors.collectingAndThen(Collectors.toUnmodifiableSet(), HashSet::new));
+
+        if (!observedMainEvents.isEmpty()) {
+            recorder.registerCamelMainEventBridge(main.getInstance(), observedMainEvents);
+        }
+    }
+
+    @BuildStep
     AdditionalIndexedClassesBuildItem indexCamelMainApplication() {
         // Required for launching CamelMain based applications from the IDE
         return new AdditionalIndexedClassesBuildItem(CamelMainApplication.class.getName());
-    }
-
-    @BuildStep(onlyIfNot = CamelMainEnabled.class)
-    void coreServicePatterns(BuildProducer<CamelServicePatternBuildItem> services) {
-        services.produce(new CamelServicePatternBuildItem(
-                CamelServiceDestination.DISCOVERY,
-                false,
-                "META-INF/services/org/apache/camel/configurer/org.apache.camel.main.*"));
     }
 }

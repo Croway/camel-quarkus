@@ -23,12 +23,12 @@
     <parent>
         <groupId>org.apache.camel</groupId>
         <artifactId>camel-dependencies</artifactId>
-        <version>3.10.0</version>
+        <version>3.20.0-SNAPSHOT</version>
     </parent>
 
     <groupId>org.apache.camel.quarkus</groupId>
     <artifactId>camel-quarkus</artifactId>
-    <version>1.9.0-SNAPSHOT</version>
+    <version>2.14.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>Camel Quarkus</name>
@@ -37,105 +37,120 @@
     <inceptionYear>2019</inceptionYear>
 
     <properties>
+
+        <!-- Primary dependencies - maintained manually -->
+        <camel.major.minor>3.20</camel.major.minor> <!-- run after each change: cd docs && mvnd validate -->
+        <camel.version>${camel.major.minor}.0-SNAPSHOT</camel.version>
+        <camel.docs.components.version>${camel.major.minor}.x</camel.docs.components.version><!-- the version in Camel's docs/components/antora.yml -->
+        <camel.docs.components.xref>${camel.docs.components.version}@components</camel.docs.components.xref><!-- the version in Camel's docs/components/antora.yml -->
+        <camel.docs.branch>camel-${camel.major.minor}.x</camel.docs.branch><!-- The stable camel branch on which our Antora docs depends -->
+        <camel.sb.docs.branch>camel-spring-boot-${camel.major.minor}.x</camel.sb.docs.branch><!-- The stable camel-spring-boot branch on which our Antora docs depends -->
+        <cassandra-quarkus.version>1.1.2</cassandra-quarkus.version><!-- https://repo1.maven.org/maven2/com/datastax/oss/quarkus/cassandra-quarkus-bom/ -->
+        <debezium.version>1.9.6.Final</debezium.version><!-- May go back to Camel's ${debezium-version} when they are in sync https://repo1.maven.org/maven2/io/debezium/debezium-bom/ -->
+        <optaplanner.version>8.27.0.Final</optaplanner.version><!-- May go back to Camel's ${optaplanner-version} when they are in sync https://repo1.maven.org/maven2/org/optaplanner/optaplanner-quarkus/ -->
+        <quarkiverse-amazonservices.version>1.1.3</quarkiverse-amazonservices.version><!-- https://repo1.maven.org/maven2/io/quarkiverse/amazonservices/quarkus-amazon-services-parent/ -->
+        <quarkiverse-artemis.version>1.2.0</quarkiverse-artemis.version><!-- https://repo1.maven.org/maven2/io/quarkiverse/artemis/quarkus-artemis-parent/ -->
+        <quarkiverse-cxf.version>1.5.2</quarkiverse-cxf.version><!-- https://repo1.maven.org/maven2/io/quarkiverse/cxf/quarkus-cxf-parent/ -->
+        <quarkiverse-freemarker.version>0.3.0</quarkiverse-freemarker.version><!-- https://repo1.maven.org/maven2/io/quarkiverse/freemarker/quarkus-freemarker-parent/ -->
+        <quarkiverse-jackson-jq.version>1.1.0</quarkiverse-jackson-jq.version><!-- https://repo1.maven.org/maven2/io/quarkiverse/jackson-jq/quarkus-jackson-jq-parent/ -->
+        <quarkiverse-jgit.version>2.2.0</quarkiverse-jgit.version><!-- https://repo1.maven.org/maven2/io/quarkiverse/jgit/quarkus-jgit-parent/ -->
+        <quarkiverse-jsch.version>2.0.1</quarkiverse-jsch.version><!-- https://repo1.maven.org/maven2/io/quarkiverse/jsch/quarkus-jsch-parent/ -->
+        <quarkiverse-minio.version>2.9.2</quarkiverse-minio.version><!-- https://repo1.maven.org/maven2/io/quarkiverse/minio/quarkus-minio-parent/ -->
+        <quarkiverse-mybatis.version>1.0.4</quarkiverse-mybatis.version><!-- https://repo1.maven.org/maven2/io/quarkiverse/mybatis/quarkus-mybatis-parent/ -->
+        <quarkiverse-tika.version>1.0.3</quarkiverse-tika.version><!-- https://repo1.maven.org/maven2/io/quarkiverse/tika/quarkus-tika-parent/ -->
+        <quarkus.version>2.13.1.Final</quarkus.version><!-- https://repo1.maven.org/maven2/io/quarkus/quarkus-bom/ -->
+        <quarkus-hazelcast-client.version>3.0.0</quarkus-hazelcast-client.version><!-- https://repo1.maven.org/maven2/com/hazelcast/quarkus-hazelcast-client-bom/ -->
+        <quarkus-qpid-jms.version>0.38.0</quarkus-qpid-jms.version><!-- https://repo1.maven.org/maven2/org/amqphub/quarkus/quarkus-qpid-jms-bom/ -->
+
         <!-- Compile dependency versions (keep sorted alphabetically) -->
-        <ahc.version>${ahc-version}</ahc.version>
+        <!-- Items annotated with @sync can be updated by running mvn cq:sync-versions -N -e -->
+        <ahc.version>2.12.3</ahc.version><!-- @sync com.cloudbees.thirdparty:zendesk-java-client:${zendesk-client-version} dep:org.asynchttpclient:async-http-client -->
         <animal-sniffer.version>1.18</animal-sniffer.version>
         <antlr3.version>3.5.2</antlr3.version><!-- Spark, Stringtemplate and probably others -->
-        <avro.version>${avro-version}</avro.version>
+        <avro.version>1.11.1</avro.version><!-- @sync io.quarkus:quarkus-bom:${quarkus.version} dep:org.apache.avro:avro -->
+        <awssdk.version>2.17.238</awssdk.version><!-- @sync io.quarkiverse.amazonservices:quarkus-amazon-services-parent:${quarkiverse-amazonservices.version} prop:awssdk.version -->
+        <assertj.version>3.23.1</assertj.version><!-- @sync io.quarkus:quarkus-build-parent:${quarkus.version} prop:assertj.version -->
         <aws-java-sdk.version>1.11.714</aws-java-sdk.version>
         <azure-sdk-bom.version>${azure-sdk-bom-version}</azure-sdk-bom.version>
-
-        <bouncycastle.version>${bouncycastle-version}</bouncycastle.version><!-- keep in sync with Camel -->
-
-        <camel.major.minor>3.10</camel.major.minor> <!-- run after each change: cd docs && mvndev validate -->
-        <camel.version>${camel.major.minor}.0</camel.version>
-        <camel.docs.components.xref>${camel.major.minor}.x@components</camel.docs.components.xref><!-- the version in Camel's docs/components/antora.yml -->
-        <camel.docs.branch>camel-${camel.major.minor}.x</camel.docs.branch><!-- The stable branch on which our Antora docs depends -->
-
-        <cassandra-java-driver.version>4.11.0</cassandra-java-driver.version><!-- keep in sync with Cassandra quarkus client -->
-        <cassandra-quarkus.version>1.0.1</cassandra-quarkus.version>
-        <commons-beanutils.version>${commons-beanutils-version}</commons-beanutils.version><!-- keep in sync with Camel -->
+        <azure-core.version>1.32.0</azure-core.version><!-- @sync com.azure:azure-sdk-bom:${azure-sdk-bom.version} dep:com.azure:azure-core -->
+        <azure-core-test.version>1.11.0</azure-core-test.version>
+        <azure-identity.version>1.6.0</azure-identity.version><!-- @sync com.azure:azure-sdk-bom:${azure-sdk-bom.version} dep:com.azure:azure-identity -->
+        <cassandra-driver-test.version>3.7.1</cassandra-driver-test.version><!-- Keep in sync with testcontainers instead of Debezium bom -->
+        <bouncycastle.version>1.70</bouncycastle.version><!-- @sync io.quarkus:quarkus-bom:${quarkus.version} dep:org.bouncycastle:bcprov-jdk15on -->
+        <caffeine.version>2.9.3</caffeine.version><!-- @sync io.quarkus:quarkus-bom:${quarkus.version} dep:com.github.ben-manes.caffeine:caffeine -->
+        <commons-beanutils.version>${commons-beanutils-version}</commons-beanutils.version>
         <commons-cli.version>1.4</commons-cli.version><!-- keep in sync with Quarkus, via quarkus-bootstrap-core -->
         <commons-collections.version>3.2.2</commons-collections.version><!-- used by hbase, should be pretty stable as commons-collections are not developed actively anymore -->
+        <commons-exec.version>${commons-exec-version}</commons-exec.version>
         <commons-lang.version>2.6</commons-lang.version><!-- used by hbase, should be pretty stable as commons-lang is not developed actively anymore -->
         <commons-math3.version>3.6.1</commons-math3.version><!-- Mess in the transitive dependencies of Spark and hbase-testing-util -->
         <curator.version>4.3.0</curator.version><!-- Mess in the transitive dependencies of Spark, Zookeeper and other hadoop related components -->
-        <debezium.version>1.4.0.Final</debezium.version>
-        <derby.version>10.15.2.0</derby.version><!-- Spark -->
-        <eddsa.version>0.3.0</eddsa.version>
-        <freemarker.version>2.3.31</freemarker.version><!-- keep in sync with quarkiverse.freemarker.version -->
-        <fommil.netlib.core.version>1.1.2</fommil.netlib.core.version><!-- Mess in Weka transitive deps -->
-        <jodatime.version>2.10.6</jodatime.version><!-- Mess in transitive dependencies of Spark and Splunk -->
-        <github-api.version>1.111</github-api.version>
-        <google-api-common.version>1.10.1</google-api-common.version> <!-- Mess in google-cloud-bom -->
-        <google-http-client.version>1.38.0</google-http-client.version>
-        <google-http-client-jackson2.version>1.38.0</google-http-client-jackson2.version> <!-- Mess in google-cloud-bom -->
-        <google-auth-library-oauth2-http.version>0.22.0</google-auth-library-oauth2-http.version> <!-- Mess in google-cloud-bom -->
-        <guava.version>29.0-jre</guava.version>
-        <graaljs.version>${graaljs-version}</graaljs.version> <!-- keep in sync with quarkus ? -->
-        <gson.version>2.8.6</gson.version><!-- JSONata -->
-        <hadoop2.version>${hadoop2-version}</hadoop2.version><!-- Spark -->
+        <cxf.version>3.5.3</cxf.version><!-- @sync io.quarkiverse.cxf:quarkus-cxf-parent:${quarkiverse-cxf.version} prop:cxf.version -->
+        <cxf.xjc-utils.version>3.3.2</cxf.xjc-utils.version><!-- @sync org.apache.cxf:cxf:${cxf.version} prop:cxf.xjc-utils.version -->
+        <eddsa.version>${eddsa-version}</eddsa.version>
+        <freemarker.version>2.3.31</freemarker.version><!-- @sync io.quarkiverse.freemarker:quarkus-freemarker-parent:${quarkiverse-freemarker.version} prop:freemarker.version -->
+        <geny.version>0.6.2</geny.version>
+        <github-api.version>1.111</github-api.version><!-- Used in a Groovy script bellow -->
+        <google-auth-library-credentials.version>1.7.0</google-auth-library-credentials.version><!-- TODO: Revert back to using Camel's version when gRPC versions are in sync -->
+        <google-oauth-client.version>${google-oauth-client-version}</google-oauth-client.version><!-- TODO: Fix this in Camel https://github.com/apache/camel-quarkus/issues/4139 -->
+        <graalvm.version>22.2.0</graalvm.version><!-- @sync io.quarkus:quarkus-bom:${quarkus.version} dep:org.graalvm.sdk:graal-sdk -->
+        <grpc.version>1.49.0</grpc.version><!-- @sync io.quarkus:quarkus-bom:${quarkus.version} dep:io.grpc:grpc-core -->
         <hapi.version>${hapi-version}</hapi.version>
         <hapi-fhir.version>${hapi-fhir-version}</hapi-fhir.version>
-        <hazelcast.version>4.0.3</hazelcast.version><!-- keep in sync with quarkus-hazelcast-client -->
-        <hbase.version>${hbase-version}</hbase.version><!-- Keep in sync with Camel -->
+        <hbase.version>${hbase-version}</hbase.version>
         <htrace.version>4.2.0-incubating</htrace.version><!-- Mess in hbase transitive deps -->
+        <infinispan.version>13.0.11.Final</infinispan.version><!-- @sync io.quarkus:quarkus-bom:${quarkus.version} dep:org.infinispan:infinispan-core -->
         <influxdb.version>${influx-java-driver-version}</influxdb.version>
-        <jackson-asl.version>1.9.13</jackson-asl.version><!-- Mess in the transitive dependencies of spark and hbase-testing-util -->
+        <jackson1.version>1.9.13</jackson1.version><!-- Mess in the transitive dependencies of hbase-testing-util -->
+        <jackson-asl.version>${jackson1.version}</jackson-asl.version><!-- Can be different from jackson1.version on some occasions -->
+        <jakarta.jms-api.version>2.0.3</jakarta.jms-api.version>
         <jakarta.jws.ws.api.version>2.1.0</jakarta.jws.ws.api.version>
         <jakarta.xml.ws.api.version>2.3.3</jakarta.xml.ws.api.version>
+        <java-json-tools.json-patch.version>${json-patch-version}</java-json-tools.json-patch.version><!-- A replacement for com.github.fge:json-patch -->
         <jcodings.version>1.0.55</jcodings.version><!-- used by hbase -->
+        <jodatime.version>2.10.6</jodatime.version><!-- Mess in transitive dependencies of Spark and Splunk -->
         <joni.version>2.1.31</joni.version><!-- used by json-validator -->
-        <jsoup.version>1.12.1</jsoup.version><!-- used by oaipmh -->
         <jaxen.version>1.2.0</jaxen.version>
         <javassist.version>3.22.0-CR2</javassist.version><!-- debezium -->
-        <jersey-sun.version>1.19.4</jersey-sun.version><!-- Spark -->
         <jetty.version>${jetty9-version}</jetty.version>
+        <jgit.version>6.3.0.202209071007-r</jgit.version><!-- @sync io.quarkiverse.jgit:quarkus-jgit-parent:${quarkiverse-jgit.version} prop:jgit.version -->
+        <jna-platform.version>5.6.0</jna-platform.version><!-- @sync com.azure:azure-identity:${azure-identity.version} dep:net.java.dev.jna:jna-platform -->
         <jnr-ffi.version>2.1.2</jnr-ffi.version><!-- Mess in web3j transitive deps -->
-        <json-smart.version>2.4.2</json-smart.version>
-        <kafka.version>2.5.0</kafka.version>
-        <kudu.version>${kudu-version}</kudu.version><!-- keep in sync with Camel -->
-        <kotlin.version>1.4.32</kotlin.version><!-- keep in sync with Quarkus -->
-        <netty3.version>${netty3-version}</netty3.version><!-- Spark -->
-        <minio.version>8.1.0</minio.version><!-- Hardcoded as a workaround for https://github.com/apache/camel-quarkus/issues/2503 otherwise should be kept in sync with quarkiverse-minio and camel -->
-        <mvel2.version>${mvel-version}</mvel2.version><!-- keep in sync with Camel and Optaplanner -->
-        <nimbus-jose-jwt.version>4.41.1</nimbus-jose-jwt.version><!-- Mess in hdfs transitive deps -->
-        <okhttp.version>${squareup-okhttp-version}</okhttp.version><!-- keep in sync with okio -->
-        <okio.version>${squareup-okio-version}</okio.version><!-- keep in sync with okhttp -->
-        <opencensus.version>0.28.0</opencensus.version><!-- mess in google-pubsub deps -->
-        <optaplanner.version>8.2.0.Final</optaplanner.version>
-        <perfmark.version>0.23.0</perfmark.version><!-- mess in google-pubsub deps -->
-        <protobuf.version>${protobuf-version}</protobuf.version>
-        <quarkiverse.freemarker.version>0.2.2</quarkiverse.freemarker.version>
-        <quarkiverse-minio.version>0.2.2</quarkiverse-minio.version>
-        <quarkus.version>2.0.0.Alpha2</quarkus.version>
-        <quarkus-google-cloud.version>0.5.0</quarkus-google-cloud.version>
-        <quarkus-hazelcast-client.version>1.1.1</quarkus-hazelcast-client.version>
-        <quarkus-qpid-jms.version>0.24.0</quarkus-qpid-jms.version>
+        <json-smart.version>2.4.7</json-smart.version>
+        <kafka.version>3.2.3</kafka.version><!-- @sync io.quarkus:quarkus-bom:${quarkus.version} dep:org.apache.kafka:kafka-clients -->
+        <kudu.version>${kudu-version}</kudu.version>
+        <kotlin.version>1.7.20</kotlin.version><!-- @sync io.quarkus:quarkus-bom:${quarkus.version} dep:org.jetbrains.kotlin:kotlin-stdlib -->
+        <kryo.version>2.24.0</kryo.version><!-- @sync org.apache.flink:flink-core:${flink-version} dep:com.esotericsoftware.kryo:kryo -->
+        <libthrift.version>${libthrift-version}</libthrift.version> <!-- Spark -->
+        <msal4j.version>1.13.1</msal4j.version><!-- @sync com.azure:azure-identity:${azure-identity.version} dep:com.microsoft.azure:msal4j -->
+        <mvel2.version>2.4.14.Final</mvel2.version><!-- @sync org.apache.camel:camel-dependencies:${camel.version} prop:mvel-version -->
+        <okio.version>${squareup-okio-version}</okio.version>
+        <opencensus.version>0.31.0</opencensus.version><!-- Mess in Google cloud. Keep in sync with version used in com.google.http-client:google-http-client -->
+        <perfmark-api.version>0.25.0</perfmark-api.version><!-- @sync io.grpc:grpc-netty-shaded:${grpc.version} dep:io.perfmark:perfmark-api -->
+        <protobuf.version>3.19.3</protobuf.version><!-- @sync io.quarkus:quarkus-bom:${quarkus.version} dep:com.google.protobuf:protobuf-java -->
+        <reactor-core.version>3.4.22</reactor-core.version><!-- @sync com.azure:azure-core:${azure-core.version} dep:io.projectreactor:reactor-core -->
+        <reactor-netty.version>${reactor-netty-version}</reactor-netty.version>
         <retrofit.version>2.5.0</retrofit.version>
-        <saaj.impl.version>1.5.3</saaj.impl.version>
-        <scala-2.11.version>2.11.12</scala-2.11.version><!-- Spark -->
-        <smallrye.reactive.messaging.camel.version>2.9.0</smallrye.reactive.messaging.camel.version> <!-- keep in sync with Quarkus SmallRye Reactive Messaging -->
-        <!-- Keep spring.version aligned with the version used by Camel -->
+        <smallrye.reactive.messaging.camel.version>3.20.0</smallrye.reactive.messaging.camel.version><!-- @sync io.quarkus:quarkus-bom:${quarkus.version} dep:io.smallrye.reactive:smallrye-reactive-messaging-provider -->
         <spring.version>${spring5-version}</spring.version>
-        <snakeyaml.version>${snakeyaml-version}</snakeyaml.version>
-        <snappy.version>1.1.7.7</snappy.version><!-- Spark -->
-        <threetenbp.version>1.4.0</threetenbp.version>
-        <xalan.version>${xalan-version}</xalan.version>
+        <snakeyaml.version>1.33</snakeyaml.version><!-- @sync io.quarkus:quarkus-bom:${quarkus.version} dep:org.yaml:snakeyaml -->
+        <tablesaw.version>0.43.1</tablesaw.version>
+        <threetenbp.version>1.6.0</threetenbp.version>
+        <xalan.version>2.7.2</xalan.version><!-- Xalan should be removed as is in Camel, but it is not possible. https://github.com/apache/camel-quarkus/issues/4065-->
         <xchange.version>${xchange-version}</xchange.version>
         <xerces.version>${xerces-version}</xerces.version>
-        <xmlgraphics-commons.version>2.3</xmlgraphics-commons.version><!-- mess in FOP transitive deps -->
+        <xmlgraphics-commons.version>2.7</xmlgraphics-commons.version><!-- @sync org.apache.xmlgraphics:fop-parent:${fop-version} prop:xmlgraphics.commons.version -->
         <xstream.version>${xstream-version}</xstream.version>
-        <web3j.version>${web3j-version}</web3j.version><!-- keep in sync with Camel -->
-        <web3j.quorum.version>${web3j-quorum-version}</web3j.quorum.version><!-- keep in sync with Camel -->
-        <woodstox-core.version>${woodstox-core-version}</woodstox-core.version><!-- keep in sync with Camel -->
+        <web3j.version>${web3j-version}</web3j.version>
+        <web3j.quorum.version>${web3j-quorum-version}</web3j.quorum.version>
         <zookeeper.version>${solr-zookeeper-version}</zookeeper.version><!-- ${solr-zookeeper-version} is newer than ${zookeeper-version} -->
         <zxing.version>3.3.3</zxing.version><!-- Mess in IOTA transitive deps -->
 
         <!-- Test dependency versions (keep sorted alphabetically) -->
         <commons-logging.version>1.2</commons-logging.version><!-- Mess in the transitive dependencies of hbase-testing-util -->
-        <consul-client.version>1.3.3</consul-client.version>
+        <consul-client.version>${consul-client-version}</consul-client.version>
         <ftpserver.version>1.1.1</ftpserver.version>
+        <greenmail.version>1.6.7</greenmail.version>
         <istack-commons-runtime.version>3.0.10</istack-commons-runtime.version>
         <jakarta.mail.version>${jakarta-mail-version}</jakarta.mail.version>
         <htmlunit-driver.version>2.47.1</htmlunit-driver.version>
@@ -145,35 +160,42 @@
         <sshd.version>${sshd-version}</sshd.version>
         <stax2.version>4.2</stax2.version>
         <wiremock.version>2.27.2</wiremock.version>
-        <zt-exec.version>1.11</zt-exec.version>
+        <zt-exec.version>1.12</zt-exec.version>
+
+        <!-- Tooling dependency versions (keep sorted alphabetically) -->
+        <maven-utils.version>0.1.0</maven-utils.version>
 
         <!-- Maven plugin versions (keep sorted alphabetically) -->
-        <cq-plugin.version>0.33.0</cq-plugin.version>
+        <cq-plugin.version>3.1.0</cq-plugin.version>
         <build-helper-maven-plugin.version>3.1.0</build-helper-maven-plugin.version>
         <exec-maven-plugin.version>3.0.0</exec-maven-plugin.version>
-        <formatter-maven-plugin.version>2.11.0</formatter-maven-plugin.version>
+        <formatter-maven-plugin.version>2.17.1</formatter-maven-plugin.version>
         <frontend-maven-plugin.version>1.6</frontend-maven-plugin.version>
         <groovy-maven-plugin.version>2.1.1</groovy-maven-plugin.version>
-        <groovy.version>3.0.5</groovy.version>
-        <impsort-maven-plugin.version>1.3.2</impsort-maven-plugin.version>
+        <groovy.version>3.0.8</groovy.version>
+        <impsort-maven-plugin.version>1.7.0</impsort-maven-plugin.version>
         <jandex-maven-plugin.version>1.0.8</jandex-maven-plugin.version>
         <mycila-license.version>3.0</mycila-license.version>
         <maven-assembly-plugin.version>3.1.1</maven-assembly-plugin.version>
         <maven-compiler-plugin.version>3.8.0</maven-compiler-plugin.version>
         <maven-dependency-plugin.version>3.1.1</maven-dependency-plugin.version>
+        <maven-enforcer-plugin.version>3.0.0-M3</maven-enforcer-plugin.version>
         <maven-gpg-plugin.version>1.6</maven-gpg-plugin.version>
         <maven-deploy-plugin.version>3.0.0-M1</maven-deploy-plugin.version>
         <maven-jar-plugin.version>3.2.0</maven-jar-plugin.version>
         <maven-javadoc-plugin.version>3.2.0</maven-javadoc-plugin.version>
+        <maven-plugin-plugin.version>3.6.4</maven-plugin-plugin.version>
         <maven-source-plugin.version>3.1.0</maven-source-plugin.version>
         <maven-release-plugin.version>2.5.3</maven-release-plugin.version>
         <maven-resources-plugin.version>3.1.0</maven-resources-plugin.version>
+        <maven-scm-plugin.version>1.11.3</maven-scm-plugin.version>
         <maven-shade-plugin.version>3.2.4</maven-shade-plugin.version>
         <!-- NOTE: We pin to this version due to https://github.com/apache/camel-quarkus/issues/723 -->
         <maven-surefire-plugin.version>2.22.2</maven-surefire-plugin.version>
+        <os-maven-plugin.version>${os-maven-plugin-version}</os-maven-plugin.version>
         <properties-maven-plugin.version>1.0.0</properties-maven-plugin.version>
-        <proto-google-common-protos.version>1.17.0</proto-google-common-protos.version>
-        <rpkgtests-maven-plugin.version>0.9.0</rpkgtests-maven-plugin.version>
+        <protobuf-maven-plugin.version>${protobuf-maven-plugin-version}</protobuf-maven-plugin.version>
+        <rpkgtests-maven-plugin.version>0.10.0</rpkgtests-maven-plugin.version>
 
         <!-- Plugin configuration through properties  -->
 
@@ -182,13 +204,13 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
         <!-- maven-compiler-plugin -->
-        <maven.compiler.target>1.8</maven.compiler.target>
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.testTarget>${maven.compiler.target}</maven.compiler.testTarget>
-        <maven.compiler.testSource>${maven.compiler.source}</maven.compiler.testSource>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
+        <maven.compiler.release>11</maven.compiler.release>
 
         <!-- maven-enforcer-plugin -->
-        <min-maven-version>3.6.2</min-maven-version>
+        <min-maven-version>3.8.2</min-maven-version>
+        <target-maven-version>3.8.6</target-maven-version><!-- @sync io.quarkus:quarkus-build-parent:${quarkus.version} prop:proposed-maven-version -->
         <supported-maven-versions>[${min-maven-version},)</supported-maven-versions>
 
         <!-- maven-release-plugin -->
@@ -207,6 +229,8 @@
         <module>integration-tests</module>
         <module>integration-test-groups</module>
         <module>docs</module>
+        <module>integration-tests-jvm</module>
+        <module>test-framework</module>
     </modules>
 
     <developers>
@@ -356,18 +380,24 @@
 
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-plugin-plugin</artifactId>
+                    <version>${maven-plugin-plugin.version}</version>
+                </plugin>
+
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-release-plugin</artifactId>
                     <version>${maven-release-plugin.version}</version>
                     <configuration>
                         <!-- release:prepare config -->
-                        <preparationGoals>clean package</preparationGoals>
-                        <waitBeforeTagging>10</waitBeforeTagging>
+                        <preparationGoals>clean validate -Pcommit-release-changes "-Dcq.commit.message.prefix=[maven-release-plugin] Prepare release" -N</preparationGoals>
+                        <completionGoals>clean validate -Pcommit-release-changes "-Dcq.commit.message.prefix=[maven-release-plugin] Set next development version" -N</completionGoals>
                         <!-- release:perform config -->
                         <useReleaseProfile>true</useReleaseProfile>
                         <releaseProfiles>apache-release</releaseProfiles>
                         <goals>deploy</goals>
                         <!-- Both release:prepare and release:perform config -->
-                        <arguments>-DskipTests -Denforcer.skip -Dquarkus.build.skip -Dformatter.skip -Dimpsort.skip</arguments>
+                        <arguments>-DskipTests -Denforcer.skip -Dquarkus.build.skip -Dformatter.skip -Dimpsort.skip -Dskip.installyarn -Dskip.yarn</arguments>
                     </configuration>
                 </plugin>
 
@@ -379,8 +409,19 @@
 
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-scm-plugin</artifactId>
+                    <version>${maven-scm-plugin.version}</version>
+                </plugin>
+
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-shade-plugin</artifactId>
                     <version>${maven-shade-plugin.version}</version>
+                    <configuration>
+                        <transformers>
+                            <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer"/>
+                        </transformers>
+                    </configuration>
                 </plugin>
 
                 <plugin>
@@ -389,10 +430,18 @@
                     <version>${maven-surefire-plugin.version}</version>
                     <configuration>
                         <failIfNoTests>false</failIfNoTests>
-                        <systemProperties>
+                        <systemPropertyVariables>
                             <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
-                        </systemProperties>
+                            <maven.home>${maven.home}</maven.home>
+                            <maven.settings>${session.request.userSettingsFile.path}</maven.settings>
+                        </systemPropertyVariables>
                     </configuration>
+                </plugin>
+
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-enforcer-plugin</artifactId>
+                    <version>${maven-enforcer-plugin.version}</version>
                 </plugin>
 
                 <plugin>
@@ -408,26 +457,14 @@
                 </plugin>
 
                 <plugin>
-                    <groupId>io.quarkus</groupId>
-                    <artifactId>quarkus-maven-plugin</artifactId>
-                    <version>${quarkus.version}</version>
-                </plugin>
-                <plugin>
                     <groupId>org.l2x6.cq</groupId>
                     <artifactId>cq-maven-plugin</artifactId>
                     <version>${cq-plugin.version}</version>
                     <configuration>
-                        <extensionDirectories>
-                            <extensionDirectory>${project.basedir}/extensions-core</extensionDirectory>
-                            <extensionDirectory>${project.basedir}/extensions</extensionDirectory>
-                            <extensionDirectory>${project.basedir}/extensions-jvm</extensionDirectory>
-                        </extensionDirectories>
+                        <simpleElementWhitespace>SPACE</simpleElementWhitespace>
                         <skipArtifactIdBases>
                             <skipArtifactIdBase>http-common</skipArtifactIdBase>
-                            <skipArtifactIdBase>integration-test-support-custom-log-component</skipArtifactIdBase>
-                            <skipArtifactIdBase>integration-test-support-custom-main-listener</skipArtifactIdBase>
-                            <skipArtifactIdBase>integration-test-support-custom-routes-collector</skipArtifactIdBase>
-                            <skipArtifactIdBase>integration-test-support-custom-type-converter</skipArtifactIdBase>
+                            <skipArtifactIdBase>integration-tests?-support-.*</skipArtifactIdBase>
                         </skipArtifactIdBases>
                     </configuration>
                     <dependencies>
@@ -452,7 +489,7 @@
                             <type>pom</type>
                             <exclusions>
                                 <exclusion>
-                                    <!-- groovy-testng depends on testng 7.2.0 wich is not on maven central -->
+                                    <!-- groovy-testng depends on testng 7.2.0 which is not on maven central -->
                                     <groupId>org.codehaus.groovy</groupId>
                                     <artifactId>groovy-testng</artifactId>
                                 </exclusion>
@@ -479,9 +516,12 @@
                         <header>header.txt</header>
                         <excludes>
                             <exclude>**/*.adoc</exclude>
+                            <exclude>modules/**/*.yml</exclude>
+                            <exclude>src/main/resources/doc-templates/extensions-camel-bits.yml</exclude>
                             <exclude>**/*.adm</exclude>
                             <exclude>**/*.avsc</exclude>
                             <exclude>**/*.avpr</exclude>
+                            <exclude>**/*.bcfks</exclude>
                             <exclude>**/*.bin</exclude>
                             <exclude>**/*.cnf</exclude>
                             <exclude>**/*.conf</exclude>
@@ -491,6 +531,8 @@
                             <exclude>**/*.graphql</exclude>
                             <exclude>**/*.ics</exclude>
                             <exclude>**/*.jks</exclude>
+                            <exclude>**/*.jpeg</exclude>
+                            <exclude>**/*.key</exclude>
                             <exclude>**/*.kts</exclude>
                             <exclude>**/*.lock</exclude>
                             <exclude>**/*.mp3</exclude>
@@ -521,7 +563,9 @@
                             <exclude>KEYS</exclude>
                             <exclude>doap.rdf</exclude>
                             <exclude>ide-config/**</exclude>
-                            <exclude>mvnw*</exclude>
+                            <exclude>id_file</exclude>
+                            <exclude>**/mvnw*</exclude>
+                            <exclude>**/*.net</exclude>
                             <exclude>node/**</exclude>
                             <exclude>**/resources/routes.1</exclude>
                             <exclude>**/resources/routes.2</exclude>
@@ -529,12 +573,18 @@
                             <exclude>.envrc</exclude>
                             <exclude>**/.idea/**</exclude>
                             <exclude>**/k8s-sb/**</exclude>
+                            <exclude>.gitattributes</exclude>
+                            <exclude>**/src/test/resources/__files/*.xml</exclude>
                         </excludes>
                         <mapping>
+                            <cli>CAMEL_PROPERTIES_STYLE</cli>
+                            <ds>SLASHSTAR_STYLE</ds>
                             <groovy>SLASHSTAR_STYLE</groovy>
                             <java>SLASHSTAR_STYLE</java>
+                            <jaxb.index>CAMEL_PROPERTIES_STYLE</jaxb.index>
                             <Jenkinsfile>SLASHSTAR_STYLE</Jenkinsfile>
                             <Jenkinsfile.quarkus>SLASHSTAR_STYLE</Jenkinsfile.quarkus>
+                            <Jenkinsfile.sonarcloud>SLASHSTAR_STYLE</Jenkinsfile.sonarcloud>
                             <properties>CAMEL_PROPERTIES_STYLE</properties>
                             <rnc>SCRIPT_STYLE</rnc>
                             <ini>SCRIPT_STYLE</ini>
@@ -572,7 +622,7 @@
 
                 -->
                 <configuration>
-                    <templatesUriBase>file:///${project.basedir}/tooling/create-extension-templates</templatesUriBase>
+                    <templatesUriBase>file:${project.basedir}/tooling/create-extension-templates</templatesUriBase>
                     <extensionDirs>
                         <extensionDir>
                             <path>extensions</path>
@@ -593,6 +643,10 @@
                         <extensionDir>
                             <path>integration-tests-support</path>
                             <artifactIdPrefix>camel-quarkus-integration-test-support-</artifactIdPrefix>
+                        </extensionDir>
+                        <extensionDir>
+                            <path>test-framework</path>
+                            <artifactIdPrefix>camel-quarkus-test-framework</artifactIdPrefix>
                         </extensionDir>
                     </extensionDirs>
                 </configuration>
@@ -667,6 +721,78 @@
                                         <requireMavenVersion>
                                             <version>${supported-maven-versions}</version>
                                         </requireMavenVersion>
+                                        <bannedDependencies>
+                                            <excludes>
+                                                <exclude>ch.qos.logback:logback-classic</exclude><!-- dismiss; the functionality is provided by JBoss Log Manager provided via quarkus-core -->
+                                                <exclude>ch.qos.logback:logback-core</exclude><!-- dismiss; the functionality is provided by JBoss Log Manager provided via quarkus-core -->
+                                                <exclude>ch.qos.logback:logback-access</exclude><!-- dismiss; the functionality is provided by JBoss Log Manager provided via quarkus-core -->
+                                                <exclude>ch.qos.logback:logback</exclude><!-- dismiss; the functionality is provided by JBoss Log Manager provided via quarkus-core -->
+                                                <exclude>com.github.fge:*</exclude><!-- Use com.github.java-json-tools:* instead -->
+                                                <exclude>com.google.code.findbugs:jsr305</exclude>
+                                                <exclude>com.sun.activation:javax.activation</exclude><!-- use com.sun.activation:jakarta.activation instead -->
+                                                <exclude>commons-logging:commons-logging</exclude><!-- use org.jboss.logging:commons-logging-jboss-logging instead of commons-logging and commons-logging-api -->
+                                                <exclude>commons-logging:commons-logging-api</exclude><!-- use org.jboss.logging:commons-logging-jboss-logging instead of commons-logging and commons-logging-api -->
+                                                <exclude>io.netty:netty-all</exclude><!-- Use more fine grained netty artifacts or even io.quarkus:quarkus-netty instead -->
+                                                <exclude>org.glassfish:javax.json</exclude><!-- use jakarta.json:jakarta.json-api instead -->
+                                                <exclude>org.glassfish:javax.el</exclude><!-- use org.glassfish:jakarta.el instead (same as Quarkus) -->
+                                                <exclude>jakarta.activation:jakarta.activation-api</exclude><!-- use com.sun.activation:jakarta.activation instead -->
+                                                <exclude>jakarta.json:jakarta.json-api</exclude><!-- use org.glassfish:jakarta.json instead (same as Quarkus) -->
+                                                <exclude>jakarta.xml.bind:jakarta.xml.bind-api</exclude><!-- use org.jboss.spec.javax.xml.bind:jboss-jaxb-api_2.3_spec instead (same as Quarkus) -->
+                                                <exclude>jakarta.ws.rs:jakarta.ws.rs-api</exclude><!-- use org.jboss.spec.javax.ws.rs:jboss-jaxrs-api_2.1_spec (same as Quarkus) -->
+                                                <exclude>javax.activation:activation</exclude><!-- use com.sun.activation:jakarta.activation instead -->
+                                                <exclude>javax.activation:javax.activation-api</exclude><!-- use com.sun.activation:jakarta.activation instead -->
+                                                <exclude>javax.annotation:javax.annotation-api</exclude><!-- use jakarta.activation:jakarta.annotation-api instead -->
+                                                <exclude>javax.el:el-api</exclude><!-- use jakarta.el:jakarta.el-api instead -->
+                                                <exclude>javax.enterprise:cdi-api</exclude><!-- use jakarta.enterprise:jakarta.enterprise.cdi-api instead -->
+                                                <exclude>javax.inject:javax.inject</exclude><!-- use jakarta.inject:jakarta.inject-api instead -->
+                                                <exclude>javax:javaee-api</exclude><!-- this is an all-in-one jar; use the individual replacements documented around here -->
+                                                <exclude>javax.json:javax.json-api</exclude><!-- use jakarta.json:jakarta.json-api instead -->
+                                                <exclude>javax.json.bind:javax.json.bind-api</exclude><!-- use jakarta.json.bind:jakarta.json.bind-api instead -->
+                                                <exclude>javax.persistence:javax.persistence-api</exclude><!-- use jakarta.persistence:jakarta.persistence-api instead -->
+                                                <exclude>javax.persistence:persistence-api</exclude><!-- use jakarta.persistence:jakarta.persistence-api instead -->
+                                                <exclude>javax.security.enterprise:javax.security.enterprise-api</exclude><!-- use jakarta.security.enterprise:jakarta.security.enterprise-api instead -->
+                                                <exclude>javax.servlet:servlet-api</exclude><!-- use jakarta.servlet:jakarta.servlet-api instead -->
+                                                <exclude>javax.servlet:javax.servlet-api</exclude><!-- use jakarta.servlet:jakarta.servlet-api instead -->
+                                                <exclude>javax.transaction:jta</exclude><!-- use jakarta.transaction:jakarta.transaction-api instead -->
+                                                <exclude>javax.transaction:javax.transaction-api</exclude><!-- use jakarta.transaction:jakarta.transaction-api instead -->
+                                                <exclude>javax.validation:validation-api</exclude><!-- use jakarta.validation:jakarta.validation-api instead -->
+                                                <exclude>javax.xml.bind:jaxb-api</exclude><!-- use org.jboss.spec.javax.xml.bind:jboss-jaxb-api_2.3_spec instead (same as Quarkus) -->
+                                                <exclude>javax.websocket:javax.websocket-api</exclude><!-- use jakarta.websocket:jakarta.websocket-api instead -->
+                                                <exclude>javax.ws.rs:javax.ws.rs-api</exclude><!-- use org.jboss.spec.javax.ws.rs:jboss-jaxrs-api_2.1_spec (same as Quarkus) -->
+                                                <exclude>junit:junit</exclude><!-- should not be needed at all. In the worst case, use io.quarkus:quarkus-junit4-mock instead -->
+                                                <exclude>log4j:log4j</exclude><!-- use org.jboss.logmanager:log4j-jboss-logmanager instead -->
+                                                <exclude>org.jboss.logging:jboss-logmanager</exclude><!-- replaced by jboss-logmanager pulled via quarkus-core -->
+                                                <exclude>org.jboss.logging:jboss-logging-jdk</exclude><!-- replaced by jboss-logmanager pulled via quarkus-core -->
+                                                <exclude>org.jboss.spec.javax.annotation:jboss-annotations-api_1.2_spec</exclude><!-- use the corresponding jakarta artifact instead -->
+                                                <exclude>org.jboss.spec.javax.annotation:jboss-annotations-api_1.3_spec</exclude><!-- use the corresponding jakarta artifact instead -->
+                                                <exclude>org.jboss.spec.javax.interceptor:jboss-interceptors-api_1.2_spec</exclude><!-- use the corresponding jakarta artifact instead -->
+                                                <exclude>org.jboss.spec.javax.servlet:jboss-servlet-api_3.1_spec</exclude><!-- use the corresponding jakarta artifact instead -->
+                                                <exclude>org.jboss.spec.javax.servlet:jboss-servlet-api_4.0_spec</exclude><!-- use the corresponding jakarta artifact instead -->
+                                                <exclude>org.jboss.spec.javax.security.jacc:jboss-jacc-api_1.5_spec</exclude><!-- use the corresponding jakarta artifact instead -->
+                                                <exclude>org.jboss.spec.javax.security.auth.message:jboss-jaspi-api_1.1_spec</exclude><!-- use the corresponding jakarta artifact instead -->
+                                                <exclude>org.jboss.spec.javax.transaction:jboss-transaction-api_1.2_spec</exclude><!-- use jakarta.transaction:jakarta.transaction-api instead -->
+                                                <exclude>org.jboss.spec.javax.transaction:jboss-transaction-api_1.3_spec</exclude><!-- use jakarta.transaction:jakarta.transaction-api instead -->
+                                                <exclude>org.jboss.spec.javax.websocket:jboss-websocket-api_1.1_spec</exclude><!-- use the corresponding jakarta artifact instead -->
+                                                <exclude>org.apache.geronimo.specs:geronimo-jms_1.1_spec</exclude><!-- use jakarta.jms:jakarta.jms-api instead -->
+                                                <exclude>org.apache.geronimo.specs:geronimo-jms_2.0_spec</exclude><!-- use jakarta.jms:jakarta.jms-api instead -->
+                                                <exclude>org.apache.geronimo.specs:geronimo-jta_1.0.1B_spec</exclude><!-- use jakarta.transaction:jakarta.transaction-api instead -->
+                                                <exclude>org.apache.geronimo.specs:geronimo-jta_1.1_spec</exclude><!-- use jakarta.transaction:jakarta.transaction-api instead -->
+                                                <exclude>org.apache.geronimo.specs:geronimo-jta_1.2_spec</exclude><!-- use jakarta.transaction:jakarta.transaction-api instead -->
+                                                <exclude>org.glassfish.main.transaction:javax.transaction</exclude><!-- use jakarta.transaction:jakarta.transaction-api instead -->
+                                                <exclude>org.apache.camel:camel-directvm</exclude><!-- dismiss; the functionality is provided by JBoss Log Manager provided via quarkus-core -->
+                                                <!-- Note that log4j-api should be always excluded and org.jboss.logmanager:log4j2-jboss-logmanager added instead -->
+                                                <!-- so that the version of log4j-api prefered by log4j2-jboss-logmanager is used -->
+                                                <exclude>org.apache.logging.log4j:log4j-core</exclude><!-- not needed on Quarkus -->
+                                                <exclude>org.apache.logging.log4j:log4j-slf4j-impl</exclude><!-- not needed on Quarkus -->
+                                                <exclude>org.slf4j:jcl-over-slf4j</exclude><!-- use org.jboss.logging:commons-logging-jboss-logging instead -->
+                                                <exclude>org.jboss.slf4j:slf4j-jboss-logging</exclude><!-- use org.jboss.slf4j:slf4j-jboss-logmanager instead -->
+                                                <exclude>org.slf4j:slf4j-simple</exclude><!-- use org.jboss.slf4j:slf4j-jboss-logmanager instead -->
+                                                <exclude>org.slf4j:slf4j-nop</exclude><!-- use org.jboss.slf4j:slf4j-jboss-logmanager instead -->
+                                                <exclude>org.slf4j:slf4j-jdk14</exclude><!-- use org.jboss.slf4j:slf4j-jboss-logmanager instead -->
+                                                <exclude>org.slf4j:slf4j-log4j12</exclude><!-- use org.jboss.slf4j:slf4j-jboss-logmanager instead -->
+                                                <exclude>org.slf4j:slf4j-log4j13</exclude><!-- use org.jboss.slf4j:slf4j-jboss-logmanager instead -->
+                                            </excludes>
+                                        </bannedDependencies>
                                     </rules>
                                 </configuration>
                             </execution>
@@ -684,7 +810,7 @@
                                 </goals>
                                 <phase>process-resources</phase>
                                 <configuration>
-                                    <source>file:///${project.basedir}/tooling/scripts/validate-github-workflows.groovy</source>
+                                    <source>file:${project.basedir}/tooling/scripts/validate-github-workflows.groovy</source>
                                 </configuration>
                             </execution>
                             <execution>
@@ -695,7 +821,7 @@
                                 </goals>
                                 <phase>verify</phase>
                                 <configuration>
-                                    <source>file:///${project.basedir}/tooling/scripts/validate-extension-metadata.groovy</source>
+                                    <source>file:${project.basedir}/tooling/scripts/validate-extension-metadata.groovy</source>
                                     <properties>
                                         <extensionDirs>extensions-core,extensions-support,extensions</extensionDirs>
                                     </properties>
@@ -735,31 +861,6 @@
             </build>
         </profile>
         <profile>
-            <id>jdk-8-classpath</id>
-            <activation>
-                <jdk>[9,)</jdk>
-            </activation>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-compiler-plugin</artifactId>
-                        <configuration>
-                            <release>8</release>
-                        </configuration>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-javadoc-plugin</artifactId>
-                        <configuration>
-                            <release>8</release>
-                            <detectOfflineLinks>false</detectOfflineLinks>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-        <profile>
             <id>format</id>
             <build>
                 <plugins>
@@ -793,9 +894,14 @@
                                         <sortModulesPath>extensions/pom.xml</sortModulesPath>
                                         <sortModulesPath>extensions-jvm/pom.xml</sortModulesPath>
                                         <sortModulesPath>integration-tests/pom.xml</sortModulesPath>
+                                        <sortModulesPath>integration-tests-jvm/pom.xml</sortModulesPath>
                                         <sortModulesPath>integration-test-groups/pom.xml</sortModulesPath>
                                         <sortModulesPath>integration-test-groups/aws2/pom.xml</sortModulesPath>
+                                        <sortModulesPath>integration-test-groups/aws2-quarkus-client/pom.xml</sortModulesPath>
                                         <sortModulesPath>integration-test-groups/azure/pom.xml</sortModulesPath>
+                                        <sortModulesPath>integration-test-groups/compression/pom.xml</sortModulesPath>
+                                        <sortModulesPath>integration-test-groups/foundation/pom.xml</sortModulesPath>
+                                        <sortModulesPath>integration-test-groups/mongodb/pom.xml</sortModulesPath>
                                     </sortModulesPaths>
                                     <sortDependencyManagementPaths>
                                         <sortDependencyManagementPath>poms/bom/pom.xml</sortDependencyManagementPath>
@@ -804,9 +910,9 @@
                                         <updateVirtualDependency>
                                             <basedir>${project.basedir}</basedir>
                                             <includes>
-                                                <include>extensions-jvm/*/integration-test/pom.xml</include>
                                                 <include>integration-tests/*/pom.xml</include>
                                                 <include>integration-test-groups/*/*/pom.xml</include>
+                                                <include>integration-tests-jvm/*/pom.xml</include>
                                             </includes>
                                         </updateVirtualDependency>
                                     </updateVirtualDependencies>
@@ -818,28 +924,6 @@
                                             </includes>
                                         </updateVirtualDependenciesAllExtension>
                                     </updateVirtualDependenciesAllExtensions>
-                                    <extensionDirs>
-                                        <extensionDir>
-                                            <path>extensions</path>
-                                            <artifactIdPrefix>camel-quarkus-</artifactIdPrefix>
-                                        </extensionDir>
-                                        <extensionDir>
-                                            <path>extensions-core</path>
-                                            <artifactIdPrefix>camel-quarkus-</artifactIdPrefix>
-                                        </extensionDir>
-                                        <extensionDir>
-                                            <path>extensions-jvm</path>
-                                            <artifactIdPrefix>camel-quarkus-</artifactIdPrefix>
-                                        </extensionDir>
-                                        <extensionDir>
-                                            <path>extensions-support</path>
-                                            <artifactIdPrefix>camel-quarkus-support-</artifactIdPrefix>
-                                        </extensionDir>
-                                        <extensionDir>
-                                            <path>integration-tests-support</path>
-                                            <artifactIdPrefix>camel-quarkus-integration-test-support-</artifactIdPrefix>
-                                        </extensionDir>
-                                    </extensionDirs>
                                     <removeEmptyApplicationProperties>
                                         <directory>${basedir}</directory>
                                         <includes>
@@ -859,12 +943,48 @@
                                         </mergePom>
                                         <mergePom>
                                             <sourcePoms>
+                                                <directory>${basedir}/integration-test-groups/aws2-quarkus-client</directory>
+                                                <includes>
+                                                    <include>*/pom.xml</include>
+                                                </includes>
+                                            </sourcePoms>
+                                            <destinationPom>${basedir}/integration-tests/aws2-quarkus-client-grouped/pom.xml</destinationPom>
+                                        </mergePom>
+                                        <mergePom>
+                                            <sourcePoms>
                                                 <directory>${basedir}/integration-test-groups/azure</directory>
                                                 <includes>
                                                     <include>*/pom.xml</include>
                                                 </includes>
                                             </sourcePoms>
                                             <destinationPom>${basedir}/integration-tests/azure-grouped/pom.xml</destinationPom>
+                                        </mergePom>
+                                        <mergePom>
+                                            <sourcePoms>
+                                                <directory>${basedir}/integration-test-groups/compression</directory>
+                                                <includes>
+                                                    <include>*/pom.xml</include>
+                                                </includes>
+                                            </sourcePoms>
+                                            <destinationPom>${basedir}/integration-tests/compression-grouped/pom.xml</destinationPom>
+                                        </mergePom>
+                                        <mergePom>
+                                            <sourcePoms>
+                                                <directory>${basedir}/integration-test-groups/foundation</directory>
+                                                <includes>
+                                                    <include>*/pom.xml</include>
+                                                </includes>
+                                            </sourcePoms>
+                                            <destinationPom>${basedir}/integration-tests/foundation-grouped/pom.xml</destinationPom>
+                                        </mergePom>
+                                        <mergePom>
+                                            <sourcePoms>
+                                                <directory>${basedir}/integration-test-groups/mongodb</directory>
+                                                <includes>
+                                                    <include>*/pom.xml</include>
+                                                </includes>
+                                            </sourcePoms>
+                                            <destinationPom>${basedir}/integration-tests/mongodb-grouped/pom.xml</destinationPom>
                                         </mergePom>
                                     </mergePoms>
                                 </configuration>
@@ -999,7 +1119,61 @@
                 </plugins>
             </build>
         </profile>
-
+        <profile>
+            <id>commit-release-changes</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.gmaven</groupId>
+                        <artifactId>groovy-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>update-antora-yaml</id>
+                                <inherited>false</inherited>
+                                <goals>
+                                    <goal>execute</goal>
+                                </goals>
+                                <phase>validate</phase>
+                                <configuration>
+                                    <source>file:${maven.multiModuleProjectDirectory}/tooling/scripts/update-antora-yaml.groovy</source>
+                                    <properties>
+                                        <maven.multiModuleProjectDirectory>${maven.multiModuleProjectDirectory}</maven.multiModuleProjectDirectory>
+                                    </properties>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-scm-plugin</artifactId>
+                        <inherited>false</inherited>
+                        <executions>
+                            <execution>
+                                <id>add-changed-files-to-scm</id>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>add</goal>
+                                </goals>
+                                <configuration>
+                                    <basedir>${basedir}</basedir>
+                                    <includes>docs/antora.yml</includes>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>commit-changed-files-to-scm</id>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>checkin</goal>
+                                </goals>
+                                <configuration>
+                                    <message>${cq.commit.message.prefix} ${project.version}</message>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
         <profile>
             <id>deploy</id>
             <activation>
@@ -1062,16 +1236,6 @@
             <properties>
                 <quarkus.native.container-build>true</quarkus.native.container-build>
                 <quarkus.native.container-runtime>docker</quarkus.native.container-runtime>
-            </properties>
-        </profile>
-
-        <profile>
-            <id>docker-java8</id>
-            <activation>
-                <jdk>1.8</jdk>
-            </activation>
-            <properties>
-                <quarkus.native.builder-image>quay.io/quarkus/ubi-quarkus-native-image:19.3.1-java8</quarkus.native.builder-image>
             </properties>
         </profile>
 
@@ -1154,7 +1318,7 @@
                                 </goals>
                                 <phase>verify</phase>
                                 <configuration>
-                                    <source>file:///${project.basedir}/tooling/scripts/report-build-status.groovy</source>
+                                    <source>file:${project.basedir}/tooling/scripts/report-build-status.groovy</source>
                                 </configuration>
                             </execution>
                         </executions>

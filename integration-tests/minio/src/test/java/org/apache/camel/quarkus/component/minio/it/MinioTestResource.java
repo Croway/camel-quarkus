@@ -49,8 +49,7 @@ public class MinioTestResource implements QuarkusTestResourceLifecycleManager {
         String host = minioServer.getHost();
 
         return CollectionHelper.mapOf(
-                "minio.server.host", host,
-                "minio.server.port", port);
+                MinioClientProducer.MINIO_CLIENT_URL_PARAMETER, String.format("http://%s:%s", host, port));
     }
 
     @Override

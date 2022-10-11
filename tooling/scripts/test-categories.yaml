@@ -24,7 +24,8 @@ group-01:
   - hazelcast
   - http
   - infinispan
-  - ipfs
+  - jcache
+  - jms-artemis-client
   - jsch
   - kafka
   - kafka-sasl
@@ -35,16 +36,19 @@ group-02:
   - google-bigquery
   - google-pubsub
   - grpc
+  - jackson-avro
+  - jackson-protobuf
+  - jfr
+  - kafka-oauth
   - oaipmh
   - pubnub
   - protobuf
-  - simple
   - smallrye-reactive-messaging
   - solr
   - sql
 group-03:
   - bean-validator
-  - core
+  - foundation-grouped
   - core-discovery-disabled
   - freemarker
   - json-validator
@@ -66,18 +70,23 @@ group-04:
   - couchdb
   - influxdb
   - jdbc
+  - jms-qpid-amqp-client
   - jpa
   - kudu
   - leveldb
   - minio
-  - mongodb
+  - mongodb-grouped
+  - mybatis
+  - sjms-artemis-client
 group-05:
   - avro
   - base64
   - bindy
   - cbor
   - csv
+  - cxf-soap
   - dataformat
+  - datasonnet
   - hl7
   - jaxb
   - ssh
@@ -86,10 +95,8 @@ group-05:
   - xmlsecurity
   - xstream
 group-06:
-  - bean
   - exec
   - file
-  - foundation
   - headersmap
   - jta
   - jsonpath
@@ -97,27 +104,31 @@ group-06:
   - lra
   - micrometer
   - openstack
+  - opentelemetry
   - quartz
   - rabbitmq
   - saga
+  - sjms-qpid-amqp-client
 group-07:
   - dataformats-json
   - dropbox
   - geocoder
-  - jing
   - jslt
   - lumberjack
-  - msv
   - olingo4
   - optaplanner
   - pg-replication-slot
+  - sjms2-artemis-client
+  - sjms2-qpid-amqp-client
   - stax
   - weather
 group-08:
   - azure-grouped
   - crypto
   - dozer
+  - jq
   - master
+  - master-openshift
   - pdf
   - saxon
   - syndication
@@ -133,14 +144,15 @@ group-09:
   - graphql
   - kafka-sasl-ssl
   - kafka-ssl
-  - messaging
-#  - nats
+  - paho
+  - nats
   - splunk
   - spring-rabbitmq
   - xchange
   - xpath
 group-10:
   - as2
+  - aws2-quarkus-client-grouped
   - atlasmap
   - braintree
   - consul
@@ -150,10 +162,8 @@ group-10:
   - mail
   - main-unknown-args-fail
   - main-unknown-args-ignore
-  - nagios
-  - nsq
 group-11:
-  - compression
+  - compression-grouped
   - disruptor
   - flatpack
   - grok
@@ -171,16 +181,20 @@ group-11:
 group-12:
   - aws2-grouped
   - csimple
+  - quartz-clustered
+  - knative
+  - knative-channel-consumer
+  - knative-endpoint-consumer
+  - knative-event-consumer
+  - knative-producer
   - microprofile
   - openapi-java
   - opentracing
   - paho-mqtt5
   - platform-http
-  - platform-http-engine
   - reactive-streams
   - rest
   - rest-openapi
-  - vertx-kafka
   - vertx-websocket
 group-13:
   - box

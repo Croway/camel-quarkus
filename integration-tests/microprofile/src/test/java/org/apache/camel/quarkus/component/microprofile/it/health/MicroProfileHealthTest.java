@@ -16,19 +16,16 @@
  */
 package org.apache.camel.quarkus.component.microprofile.it.health;
 
-import java.util.List;
-import java.util.concurrent.TimeUnit;
-
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
-import io.restassured.path.json.JsonPath;
-import org.awaitility.Awaitility;
+import org.apache.camel.ServiceStatus;
 import org.junit.jupiter.api.Test;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 @QuarkusTest
 class MicroProfileHealthTest {
@@ -39,18 +36,19 @@ class MicroProfileHealthTest {
                 .contentType(ContentType.JSON)
                 .header("Content-Type", containsString("charset=UTF-8"))
                 .body("status", is("UP"),
-                        "checks.status", containsInAnyOrder("UP", "UP"),
-                        "checks.name",
-                        containsInAnyOrder("camel-readiness-checks", "camel-liveness-checks"),
-                        "checks.data.context", containsInAnyOrder(null, "UP"),
-                        "checks.data.'route:healthyRoute'", containsInAnyOrder(null, "UP"),
-                        "checks.data.always-up", containsInAnyOrder("UP", "UP"));
+                        "checks.status.findAll().unique()", contains("UP"),
+                        "checks.find { it.name == 'camel-routes' }", notNullValue(),
+                        "checks.find { it.name == 'camel-consumers' }", notNullValue(),
+                        "checks.find { it.name == 'context' }", notNullValue(),
+                        "checks.find { it.name == 'context' }.data.'context.name'", notNullValue());
     }
 
     @Test
     public void testHealthDownStatus() {
         try {
-            RestAssured.get("/microprofile-health/checks/failing/true")
+            RestAssured.given()
+                    .queryParam("healthCheckEnabled", "true")
+                    .post("/microprofile-health/failing-check")
                     .then()
                     .statusCode(204);
 
@@ -58,12 +56,12 @@ class MicroProfileHealthTest {
                     .contentType(ContentType.JSON)
                     .header("Content-Type", containsString("charset=UTF-8"))
                     .body("status", is("DOWN"),
-                            "checks.status", containsInAnyOrder("DOWN", "DOWN"),
-                            "checks.name",
-                            containsInAnyOrder("camel-readiness-checks", "camel-liveness-checks"),
-                            "checks.data.context", containsInAnyOrder(null, "UP"));
+                            "checks.findAll { it.name == 'failing-check' }.status", contains("DOWN", "DOWN"),
+                            "checks.findAll { it.name != 'failing-check' }.status.unique()", contains("UP"));
         } finally {
-            RestAssured.get("/microprofile-health/checks/failing/false")
+            RestAssured.given()
+                    .queryParam("healthCheckEnabled", "false")
+                    .post("/microprofile-health/failing-check")
                     .then()
                     .statusCode(204);
         }
@@ -75,16 +73,16 @@ class MicroProfileHealthTest {
                 .contentType(ContentType.JSON)
                 .header("Content-Type", containsString("charset=UTF-8"))
                 .body("status", is("UP"),
-                        "checks.status", containsInAnyOrder("UP"),
-                        "checks.name", containsInAnyOrder("camel-liveness-checks"),
-                        "checks.data.test", containsInAnyOrder("UP"),
-                        "checks.data.test-liveness", containsInAnyOrder("UP"));
+                        "checks.status.findAll().unique()", contains("UP"),
+                        "checks.find { it.name == 'test-liveness' }.data.isLive as Boolean", is(true));
     }
 
     @Test
     public void testLivenessDownStatus() {
         try {
-            RestAssured.get("/microprofile-health/checks/failing/true")
+            RestAssured.given()
+                    .queryParam("healthCheckEnabled", "true")
+                    .post("/microprofile-health/failing-check")
                     .then()
                     .statusCode(204);
 
@@ -92,13 +90,12 @@ class MicroProfileHealthTest {
                     .contentType(ContentType.JSON)
                     .header("Content-Type", containsString("charset=UTF-8"))
                     .body("status", is("DOWN"),
-                            "checks.status", containsInAnyOrder("DOWN"),
-                            "checks.name", containsInAnyOrder("camel-liveness-checks"),
-                            "checks.data.test", containsInAnyOrder("UP"),
-                            "checks.data.test-liveness", containsInAnyOrder("UP"),
-                            "checks.data.failing-check", containsInAnyOrder("DOWN"));
+                            "checks.find { it.name == 'failing-check' }.status", is("DOWN"),
+                            "checks.findAll { it.name != 'failing-check' }.status.unique()", contains("UP"));
         } finally {
-            RestAssured.get("/microprofile-health/checks/failing/false")
+            RestAssured.given()
+                    .queryParam("healthCheckEnabled", "false")
+                    .post("/microprofile-health/failing-check")
                     .then()
                     .statusCode(204);
         }
@@ -110,16 +107,16 @@ class MicroProfileHealthTest {
                 .contentType(ContentType.JSON)
                 .header("Content-Type", containsString("charset=UTF-8"))
                 .body("status", is("UP"),
-                        "checks.status", containsInAnyOrder("UP"),
-                        "checks.name", containsInAnyOrder("camel-readiness-checks"),
-                        "checks.data.context", containsInAnyOrder("UP"),
-                        "checks.data.test-readiness", containsInAnyOrder("UP"));
+                        "checks.status.findAll().unique()", contains("UP"),
+                        "checks.find { it.name == 'test-readiness' }.data.isReady as Boolean", is(true));
     }
 
     @Test
     public void testReadinessDownStatus() {
         try {
-            RestAssured.get("/microprofile-health/checks/failing/true")
+            RestAssured.given()
+                    .queryParam("healthCheckEnabled", "true")
+                    .post("/microprofile-health/failing-check")
                     .then()
                     .statusCode(204);
 
@@ -127,12 +124,12 @@ class MicroProfileHealthTest {
                     .contentType(ContentType.JSON)
                     .header("Content-Type", containsString("charset=UTF-8"))
                     .body("status", is("DOWN"),
-                            "checks.status", containsInAnyOrder("DOWN"),
-                            "checks.name", containsInAnyOrder("camel-readiness-checks"),
-                            "checks.data.context", containsInAnyOrder("UP"),
-                            "checks.data.test-readiness", containsInAnyOrder("UP"));
+                            "checks.find { it.name == 'failing-check' }.status", is("DOWN"),
+                            "checks.findAll { it.name != 'failing-check' }.status.unique()", contains("UP"));
         } finally {
-            RestAssured.get("/microprofile-health/checks/failing/false")
+            RestAssured.given()
+                    .queryParam("healthCheckEnabled", "false")
+                    .post("/microprofile-health/failing-check")
                     .then()
                     .statusCode(204);
         }
@@ -141,7 +138,7 @@ class MicroProfileHealthTest {
     @Test
     public void testRouteStoppedDownStatus() {
         try {
-            RestAssured.get("/microprofile-health/route/healthyRoute/stop")
+            RestAssured.post("/microprofile-health/route/healthyRoute/stop")
                     .then()
                     .statusCode(204);
 
@@ -149,57 +146,18 @@ class MicroProfileHealthTest {
                     .contentType(ContentType.JSON)
                     .header("Content-Type", containsString("charset=UTF-8"))
                     .body("status", is("DOWN"),
-                            "checks.data.'route:healthyRoute'", containsInAnyOrder(null, "DOWN"));
+                            "checks.find { it.name == 'camel-routes' }.status", is("DOWN"),
+                            "checks.find { it.name == 'camel-routes' }.data.'route.id'", is("healthyRoute"),
+                            "checks.find { it.name == 'camel-routes' }.data.'route.status'",
+                            is(ServiceStatus.Stopped.toString()),
+                            "checks.find { it.name == 'camel-consumers' }.status", is("DOWN"),
+                            "checks.find { it.name == 'camel-consumers' }.data.'route.id'", is("healthyRoute"),
+                            "checks.find { it.name == 'camel-consumers' }.data.'route.status'",
+                            is(ServiceStatus.Stopped.toString()));
         } finally {
-            RestAssured.get("/microprofile-health/route/healthyRoute/start")
+            RestAssured.post("/microprofile-health/route/healthyRoute/start")
                     .then()
                     .statusCode(204);
-        }
-    }
-
-    @Test
-    public void testFailureThreshold() {
-        try {
-            RestAssured.get("/microprofile-health/route/checkIntervalThreshold/stop")
-                    .then()
-                    .statusCode(204);
-
-            // Configured failure threshold and interval should allow the initial health state be UP
-            RestAssured.when().get("/q/health").then()
-                    .contentType(ContentType.JSON)
-                    .header("Content-Type", containsString("charset=UTF-8"))
-                    .body("status", is("UP"),
-                            "checks.data.'route:checkIntervalThreshold'", containsInAnyOrder(null, "UP"));
-
-            // Poll the health endpoint until the threshold / interval is exceeded and the health state transitions to DOWN
-            Awaitility.await().atMost(10, TimeUnit.SECONDS).pollDelay(50, TimeUnit.MILLISECONDS).until(() -> {
-                JsonPath result = RestAssured.when().get("/q/health").then()
-                        .contentType(ContentType.JSON)
-                        .header("Content-Type", containsString("charset=UTF-8"))
-                        .extract()
-                        .jsonPath();
-
-                String status = result.getString("status");
-                List<String> routeStatus = result.getList("checks.data.'route:checkIntervalThreshold'");
-                return status.equals("DOWN") && routeStatus.contains("DOWN");
-            });
-        } finally {
-            RestAssured.get("/microprofile-health/route/checkIntervalThreshold/start")
-                    .then()
-                    .statusCode(204);
-
-            // Wait for the threshold check to report status UP
-            Awaitility.await().atMost(10, TimeUnit.SECONDS).pollDelay(50, TimeUnit.MILLISECONDS).until(() -> {
-                JsonPath result = RestAssured.when().get("/q/health").then()
-                        .contentType(ContentType.JSON)
-                        .header("Content-Type", containsString("charset=UTF-8"))
-                        .extract()
-                        .jsonPath();
-
-                String status = result.getString("status");
-                List<String> routeStatus = result.getList("checks.data.'route:checkIntervalThreshold'");
-                return status.equals("UP") && routeStatus.contains("UP");
-            });
         }
     }
 }

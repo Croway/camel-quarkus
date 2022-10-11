@@ -16,22 +16,23 @@
  */
 package org.apache.camel.quarkus.component.minio.it;
 
-import javax.enterprise.context.ApplicationScoped;
 import javax.enterprise.inject.Produces;
 import javax.inject.Named;
+import javax.inject.Singleton;
 
 import io.minio.MinioClient;
 import org.eclipse.microprofile.config.ConfigProvider;
 
 public class MinioClientProducer {
 
+    public static String MINIO_CLIENT_URL_PARAMETER = MinioClientProducer.class.getSimpleName() + "_url";
+
     @Produces
-    @ApplicationScoped
+    @Singleton
     @Named("minioClient")
     public MinioClient produceMinioClient() {
         return MinioClient.builder()
-                .endpoint("http://" + ConfigProvider.getConfig().getValue("minio.server.host", String.class),
-                        ConfigProvider.getConfig().getValue("minio.server.port", Integer.class), false)
+                .endpoint(ConfigProvider.getConfig().getValue(MINIO_CLIENT_URL_PARAMETER, String.class))
                 .credentials(MinioResource.SERVER_ACCESS_KEY, MinioResource.SERVER_SECRET_KEY)
                 .build();
     }

@@ -385,11 +385,21 @@ public class CamelQuarkusTestSupport extends AbstractTestSupport
         }
 
         if (isUseRouteBuilder()) {
-            // Save the routeIds of routes existing before setup
-            createdRoutes = context.getRoutes()
-                    .stream()
-                    .map(Route::getRouteId)
-                    .collect(Collectors.toSet());
+            if (isUseAdviceWith()) {
+                // With adviceWith, routes are added as definitions but not started.
+                // Use route definitions to capture the baseline so the diff in
+                // doPostSetup() correctly identifies test-created routes.
+                createdRoutes = ((ModelCamelContext) context).getRouteDefinitions()
+                        .stream()
+                        .map(RouteDefinition::getRouteId)
+                        .collect(Collectors.toSet());
+            } else {
+                // Save the routeIds of routes existing before setup
+                createdRoutes = context.getRoutes()
+                        .stream()
+                        .map(Route::getRouteId)
+                        .collect(Collectors.toSet());
+            }
         }
     }
 
@@ -414,11 +424,22 @@ public class CamelQuarkusTestSupport extends AbstractTestSupport
         }
 
         if (isUseRouteBuilder()) {
-            // Remove from the routes all routes which existed before setup
-            Set<String> allRoutes = context.getRoutes()
-                    .stream()
-                    .map(Route::getRouteId)
-                    .collect(Collectors.toSet());
+            Set<String> allRoutes;
+            if (isUseAdviceWith()) {
+                // With adviceWith, routes are added as definitions but not yet started
+                // (AdviceWith.adviceWith() may start them later). Use route definitions
+                // to correctly identify which routes the test created.
+                allRoutes = ((ModelCamelContext) context).getRouteDefinitions()
+                        .stream()
+                        .map(RouteDefinition::getRouteId)
+                        .collect(Collectors.toSet());
+            } else {
+                // Remove from the routes all routes which existed before setup
+                allRoutes = context.getRoutes()
+                        .stream()
+                        .map(Route::getRouteId)
+                        .collect(Collectors.toSet());
+            }
             if (createdRoutes != null) {
                 allRoutes.removeAll(createdRoutes);
             }

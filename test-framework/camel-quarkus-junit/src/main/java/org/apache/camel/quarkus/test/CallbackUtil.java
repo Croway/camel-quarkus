@@ -20,6 +20,8 @@ import java.util.Optional;
 import java.util.Set;
 
 import org.apache.camel.component.mock.MockEndpoint;
+import org.apache.camel.model.ModelCamelContext;
+import org.apache.camel.model.RouteDefinition;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.engine.execution.NamespaceAwareStore;
@@ -49,11 +51,17 @@ public class CallbackUtil {
         //because routes will be created again (in case of TestInstance.Lifecycle.PER_CLASS, this method is not executed)
         Set<String> createdRoutes = testInstance.getCreatedRoutes();
         if (testInstance.isUseRouteBuilder() && createdRoutes != null) {
+            ModelCamelContext mcc = (ModelCamelContext) testInstance.context();
 
             try {
                 for (String r : createdRoutes) {
-                    testInstance.context().getRouteController().stopRoute(r);
-                    testInstance.context().removeRoute(r);
+                    RouteDefinition rd = mcc.getRouteDefinition(r);
+                    if (rd != null) {
+                        mcc.removeRouteDefinition(rd);
+                    } else {
+                        testInstance.context().getRouteController().stopRoute(r);
+                        testInstance.context().removeRoute(r);
+                    }
                 }
             } catch (Exception e) {
                 throw new RuntimeException(e);
